@@ -1,15 +1,16 @@
 # KORA Internal Operations Platform — Backend Project State
 
-_Last updated: 2026-10-05 (Milestone 1)_
+_Last updated: 2026-10-05 (Milestone 2)_
 
 ## Current phase
 
-Foundation. A runnable, tested FastAPI skeleton exists. No business domain is implemented yet.
+Foundation. A runnable, tested FastAPI skeleton with a persistence foundation exists. No business domain, table or migration revision is implemented yet.
 
 ## Repository baseline
 
 - Git root: `KORA-Task-Manager/`, branch `main`, no commits yet. The backend lives in `backend/`.
-- Implemented: package `kora_api` (`src/` layout) with an app factory, settings, versioned router composition, and `GET /api/v1/health` (no DB). There is one HTTPX-based test.
+- Implemented: package `kora_api` (`src/` layout) with an app factory, settings, versioned router composition, and `GET /api/v1/health` (no DB).
+- Persistence: `core/database.py` provides the shared `Base` (with a constraint naming convention), a lazy async engine, a session factory on `app.state`, and an injectable `get_db_session` dependency. Alembic (async) lives in `migrations/` and reads `KORA_DATABASE_URL`; there are no revisions yet. `compose.yaml` defines a local PostgreSQL 17.
 
 ## Confirmed technical decisions
 
@@ -18,7 +19,10 @@ Foundation. A runnable, tested FastAPI skeleton exists. No business domain is im
 - Configuration: `pydantic-settings`, using env vars prefixed `KORA_`. Optional `.env`; `.env.example` is committed.
 - Tests: pytest + HTTPX (`AsyncClient` + `ASGITransport`, via anyio's pytest plugin).
 - Quality: Ruff for lint and format; Pyright in strict mode.
-- Data foundation (approved, **not yet installed or wired**): PostgreSQL, SQLAlchemy 2 async, Alembic.
+- Data: PostgreSQL (production), SQLAlchemy 2 async with asyncpg, and Alembic. The engine connects lazily, so the app starts without a DB. Migrations are run manually and never on startup.
+- Local infrastructure: Docker Compose, for local PostgreSQL only.
+- API docs: enabled only when `KORA_ENVIRONMENT` is `local` or `test`, and disabled in `staging` and `production`. There is no override.
+- `.serena/` is git-ignored at the repo root.
 - Runtime server: uvicorn.
 
 ## Functional scope
@@ -47,8 +51,8 @@ Five internal domains:
 - Audit/history storage strategy
 - Background jobs and scheduling for reminders; notification delivery channels
 - API conventions (error format, pagination, IDs, timestamps/timezones)
-- Local PostgreSQL setup for development and tests
-- Whether OpenAPI docs (`/docs`, `/openapi.json`) stay exposed outside local environments
+- Test-database strategy for DB-backed tests (separate DB or schema, transaction rollback, fixtures)
+- Primary key type for tables (e.g. UUID vs bigint); timestamp and soft-delete/archival column conventions
 - Deployment target, containerization, and CI
 
 ## Milestone status
@@ -57,7 +61,10 @@ Five internal domains:
 |---|---|
 | M0: Repository baseline and state record | Done |
 | M1: FastAPI foundation (uv, config, health endpoint, tooling, tests) | Done |
+| M2: Persistence foundation (SQLAlchemy async, Alembic, local PostgreSQL, docs toggle) | Done. Live DB not yet verified: Docker is not installed on the dev machine |
 
 ## Next intended work
 
-M2: the database foundation. Add the SQLAlchemy 2 async engine/session and the Alembic setup against PostgreSQL. Keep health independent of the DB. M2 adds no domain models. Before starting, decide how a local PostgreSQL instance will be provided for development and tests.
+First, verify M2 against a live database: install Docker, run `docker compose up -d postgres`, then `uv run alembic upgrade head`.
+
+M3 (to be scoped): the first domain slice, likely Access & accounts. It is blocked on these decisions: the authentication mechanism, the authorization model, the primary key, timestamp and archival conventions, and the test-database strategy.
