@@ -1,7 +1,9 @@
 from collections.abc import AsyncIterator
+from datetime import datetime
+from typing import Annotated
 
-from fastapi import Request
-from sqlalchemy import MetaData
+from fastapi import Depends, Request
+from sqlalchemy import DateTime, MetaData
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -23,16 +25,21 @@ NAMING_CONVENTION = {
 
 
 class Base(DeclarativeBase):
-    """Shared declarative base for all ORM models."""
+    """Shared declarative base for all ORM models. All datetimes are stored timezone-aware (UTC)."""
 
     metadata = MetaData(naming_convention=NAMING_CONVENTION)
+    type_annotation_map = {datetime: DateTime(timezone=True)}  # noqa: RUF012
 
 
 def create_engine(settings: Settings) -> AsyncEngine:
-    """Create the async engine. No connection is opened until first use."""
+    """Create the async engine. No connection is opened until first use.
+
+    Bound parameters (password hashes, token hashes) are kept out of logs and error messages.
+    """
     return create_async_engine(
         settings.database_url.get_secret_value(),
         echo=settings.database_echo,
+        hide_parameters=True,
         pool_pre_ping=True,
     )
 
@@ -46,3 +53,6 @@ async def get_db_session(request: Request) -> AsyncIterator[AsyncSession]:
     session_factory: async_sessionmaker[AsyncSession] = request.app.state.session_factory
     async with session_factory() as session:
         yield session
+
+
+DbSession = Annotated[AsyncSession, Depends(get_db_session)]

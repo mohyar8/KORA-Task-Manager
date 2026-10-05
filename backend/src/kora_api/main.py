@@ -6,6 +6,7 @@ from fastapi import FastAPI
 from kora_api.api.router import api_router
 from kora_api.core.config import Settings, get_settings
 from kora_api.core.database import create_engine, create_session_factory
+from kora_api.core.errors import register_error_handlers
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -27,6 +28,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         openapi_url="/openapi.json" if docs else None,
     )
     app.state.session_factory = create_session_factory(engine)
+    register_error_handlers(app)
     app.include_router(api_router)
     return app
 

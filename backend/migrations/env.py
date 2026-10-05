@@ -6,10 +6,12 @@ from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import create_async_engine
 
+from kora_api.access import models as access_models
 from kora_api.core.config import get_settings
 from kora_api.core.database import Base
 
-# Import domain model modules here as they are added so autogenerate sees their tables.
+# Every domain model module must be imported here so its tables are on Base.metadata.
+MODEL_MODULES = (access_models,)
 
 config = context.config
 
@@ -17,7 +19,10 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 target_metadata = Base.metadata
-database_url = get_settings().database_url.get_secret_value()
+# A caller (e.g. the test suite) may target another database via `sqlalchemy.url`.
+database_url = (
+    config.get_main_option("sqlalchemy.url") or get_settings().database_url.get_secret_value()
+)
 
 
 def run_migrations_offline() -> None:

@@ -8,7 +8,7 @@ Run all commands from `backend/`.
 uv sync                                           # install
 cp .env.example .env                              # optional local config
 uv run uvicorn kora_api.main:app --reload         # run (http://127.0.0.1:8000/api/v1/health)
-uv run pytest                                     # test
+uv run pytest                                     # test (needs local PostgreSQL running)
 uv run ruff check .                               # lint
 uv run ruff format .                              # format (use --check to verify only)
 uv run pyright                                    # type-check
@@ -27,5 +27,15 @@ docker compose down                               # stop (add -v to delete the d
 ```
 
 The app starts without a database. Migrations never run automatically.
+
+Tests use a separate `kora_test` database on the same server. The suite creates it if it's missing and migrates it to head. Each test runs in a transaction that is rolled back afterwards, so the development database is never touched. Override the URL with `KORA_TEST_DATABASE_URL`; the database name must end in `_test`.
+
+## First System Admin (one-time)
+
+```bash
+uv run python -m kora_api.access.bootstrap <username>
+```
+
+This prints a temporary password once. It expires in 7 days and must be changed at first sign-in. The command refuses to run again once any System Admin has ever existed.
 
 API docs (`/docs`, `/redoc`, `/openapi.json`) are on only in the `local` and `test` environments, and always off in `staging` and `production`.
