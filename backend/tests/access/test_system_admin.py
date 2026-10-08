@@ -1,7 +1,7 @@
 from datetime import timedelta
 
 import pytest
-from fastapi.routing import APIRoute
+from fastapi import APIRouter
 from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,6 +13,7 @@ from kora_api.core.config import Settings
 from kora_api.main import create_app
 from tests.access.helpers import ME, create_account, sign_in
 from tests.conftest import FrozenClock
+from tests.route_tree import mounted_routes
 
 pytestmark = pytest.mark.anyio
 
@@ -80,9 +81,28 @@ async def test_bootstrap_rejects_taken_username(db_session: AsyncSession) -> Non
 
 
 def test_bootstrap_has_no_http_endpoint() -> None:
+    # Inspect the mounted route tree, not OpenAPI, so undocumented routes cannot hide.
+    for environment in ("local", "production"):
+        paths = [path for _, path in mounted_routes(create_app(Settings(environment=environment)))]
+        assert "/api/v1/auth/sign-in" in paths  # the walk reaches nested routers
+        assert not [path for path in paths if "bootstrap" in path.lower()]
+
+
+def test_route_tree_walk_finds_undocumented_nested_routes() -> None:
+    """Guards the guard: a hidden route in a nested router must be detected."""
     app = create_app(Settings(environment="test"))
-    paths = [route.path for route in app.routes if isinstance(route, APIRoute)]
-    assert not [path for path in paths if "bootstrap" in path or "admin" in path]
+    outer, inner = APIRouter(prefix="/outer"), APIRouter(prefix="/inner")
+
+    @inner.post("/bootstrap", include_in_schema=False)
+    async def hidden() -> None:  # pyright: ignore[reportUnusedFunction]
+        return None
+
+    outer.include_router(inner)
+    app.include_router(outer, prefix="/x")
+
+    assert "/x/outer/inner/bootstrap" not in app.openapi()["paths"]
+    assert (frozenset({"POST"}), "/x/outer/inner/bootstrap") in mounted_routes(app)
+    assert {path for _, path in mounted_routes(app)} >= set(app.openapi()["paths"])
 
 
 # --- Final System Admin protection -------------------------------------------------------------

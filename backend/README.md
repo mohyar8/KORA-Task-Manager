@@ -38,4 +38,23 @@ uv run python -m kora_api.access.bootstrap <username>
 
 This prints a temporary password once. It expires in 7 days and must be changed at first sign-in. The command refuses to run again once any System Admin has ever existed.
 
+## First organization structure
+
+KORA and the PMO are seeded by migration. Creating Administrations and Teams requires the `organization.manage` permission, and System Admin carries no implicit access. So a System Admin first gives an account (possibly their own) an explicit, reasoned grant at KORA scope:
+
+```
+POST /api/v1/admin/accounts/{account_id}/overrides
+{"permission": "organization.manage", "unit_id": "<KORA id>", "effect": "grant", "reason": "..."}
+```
+
+The KORA id is `6b0a0000-0000-4000-8000-000000000001`. That account then creates units through `/api/v1/organization/units`. Members are provisioned at `/api/v1/admin/members`.
+
+## Tasks
+
+Tasks live at `/api/v1/tasks`, and weekly series at `/api/v1/task-series`. Members get `task.view` and `task.create` at their role's unit, and leaders and managers get `task.manage` (see `PROJECT_STATE.md`). Due times must include a time-zone offset.
+
+## Announcements and notifications
+
+Announcements live at `/api/v1/announcements`; leaders and managers get `announcement.publish` and `announcement.manage` at their role's unit. In-app notifications and per-category preferences live at `/api/v1/notifications`.
+
 API docs (`/docs`, `/redoc`, `/openapi.json`) are on only in the `local` and `test` environments, and always off in `staging` and `production`.

@@ -7,11 +7,21 @@ from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import create_async_engine
 
 from kora_api.access import models as access_models
+from kora_api.announcements import models as announcements_models
 from kora_api.core.config import get_settings
 from kora_api.core.database import Base
+from kora_api.notifications import models as notifications_models
+from kora_api.organization import models as organization_models
+from kora_api.tasks import models as tasks_models
 
 # Every domain model module must be imported here so its tables are on Base.metadata.
-MODEL_MODULES = (access_models,)
+MODEL_MODULES = (
+    access_models,
+    organization_models,
+    tasks_models,
+    announcements_models,
+    notifications_models,
+)
 
 config = context.config
 

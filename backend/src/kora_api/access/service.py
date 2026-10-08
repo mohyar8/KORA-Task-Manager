@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from kora_api.access import security
 from kora_api.access.models import (
+    AccountDeactivation,
     AccountStatus,
     AuthSession,
     LoginThrottle,
@@ -61,6 +62,18 @@ class BootstrapAlreadyCompletedError(Exception):
 
 
 class LastSystemAdminError(Exception):
+    pass
+
+
+class AccountNotFoundError(Exception):
+    pass
+
+
+class AccountStateError(Exception):
+    """The account is not in a state that allows the operation (e.g. inactive)."""
+
+
+class AlreadySystemAdminError(Exception):
     pass
 
 
@@ -247,13 +260,34 @@ async def bootstrap_first_system_admin(
     db: AsyncSession, raw_username: str
 ) -> tuple[UserAccount, str]:
     """Create the first System Admin with a temporary password. Works only once, ever."""
-    username = security.normalize_username(raw_username)
-    if username is None:
+    if security.normalize_username(raw_username) is None:
         raise InvalidUsernameError
     # Serialize concurrent bootstraps; the lock is released at commit/rollback.
     await db.execute(text("LOCK TABLE system_admin_grants IN EXCLUSIVE MODE"))
     if await db.scalar(select(exists().select_from(SystemAdminGrant))):
         raise BootstrapAlreadyCompletedError
+
+    account, temporary_password = await create_account_with_temporary_password(db, raw_username)
+    db.add(
+        SystemAdminGrant(
+            account_id=account.id, granted_at=clock.utcnow(), granted_by_account_id=None
+        )
+    )
+    await db.commit()
+    return account, temporary_password
+
+
+# Transactional building blocks: these flush but never commit, so callers (e.g. Member
+# provisioning) can combine them with their own changes in a single transaction.
+
+
+async def create_account_with_temporary_password(
+    db: AsyncSession, raw_username: str
+) -> tuple[UserAccount, str]:
+    """Create an active account whose password is temporary. Does not commit."""
+    username = security.normalize_username(raw_username)
+    if username is None:
+        raise InvalidUsernameError
     if await db.scalar(select(exists().where(UserAccount.username == username))):
         raise UsernameTakenError
 
@@ -269,24 +303,84 @@ async def bootstrap_first_system_admin(
     )
     db.add(account)
     await db.flush()
-    db.add(SystemAdminGrant(account_id=account.id, granted_at=now, granted_by_account_id=None))
-    await db.commit()
     return account, temporary_password
 
 
+async def reset_to_temporary_password(db: AsyncSession, account_id: uuid.UUID) -> str:
+    """Replace the password with a new temporary one and end all sessions. Does not commit."""
+    account = await db.get_one(UserAccount, account_id, with_for_update=True)
+    now = clock.utcnow()
+    temporary_password = security.generate_temporary_password()
+    account.password_hash = security.hash_password(temporary_password)
+    account.password_is_temporary = True
+    account.temporary_password_expires_at = now + TEMPORARY_PASSWORD_LIFETIME
+    account.password_changed_at = now
+    await _revoke_all_sessions(db, account_id, SessionRevokeReason.PASSWORD_CHANGE)
+    return temporary_password
+
+
 async def deactivate_account(db: AsyncSession, account_id: uuid.UUID) -> None:
-    """Deactivate an account and end its sessions. Refused for the final active System Admin."""
+    """Deactivate an account and end its sessions. Does not commit.
+
+    Refused for the final active System Admin.
+    """
     await _ensure_not_final_system_admin(db, account_id)
     account = await db.get_one(UserAccount, account_id, with_for_update=True)
     account.status = AccountStatus.DEACTIVATED
+    db.add(AccountDeactivation(account_id=account_id, deactivated_at=clock.utcnow()))
     await _revoke_all_sessions(db, account_id, SessionRevokeReason.ACCOUNT_DEACTIVATED)
+
+
+async def reactivate_account(db: AsyncSession, account_id: uuid.UUID) -> None:
+    """Make a deactivated account active again. Does not commit."""
+    account = await db.get_one(UserAccount, account_id, with_for_update=True)
+    account.status = AccountStatus.ACTIVE
+    await db.execute(
+        update(AccountDeactivation)
+        .where(
+            AccountDeactivation.account_id == account_id,
+            AccountDeactivation.reactivated_at.is_(None),
+        )
+        .values(reactivated_at=clock.utcnow())
+    )
+
+
+async def grant_system_admin(
+    db: AsyncSession, account_id: uuid.UUID, granted_by_account_id: uuid.UUID
+) -> SystemAdminGrant:
+    account = await db.get(UserAccount, account_id, with_for_update=True)
+    if account is None:
+        raise AccountNotFoundError
+    if account.status != AccountStatus.ACTIVE:
+        raise AccountStateError
+    if await is_system_admin(db, account_id):
+        raise AlreadySystemAdminError
+    grant = SystemAdminGrant(
+        account_id=account_id,
+        granted_at=clock.utcnow(),
+        granted_by_account_id=granted_by_account_id,
+    )
+    db.add(grant)
     await db.commit()
+    return grant
+
+
+async def list_system_admins(db: AsyncSession) -> list[tuple[SystemAdminGrant, UserAccount]]:
+    rows = await db.execute(
+        select(SystemAdminGrant, UserAccount)
+        .join(UserAccount, UserAccount.id == SystemAdminGrant.account_id)
+        .where(SystemAdminGrant.revoked_at.is_(None))
+        .order_by(UserAccount.username)
+    )
+    return [(grant, account) for grant, account in rows]
 
 
 async def revoke_system_admin(
     db: AsyncSession, account_id: uuid.UUID, revoked_by_account_id: uuid.UUID
 ) -> None:
     """Revoke System Admin authority. Refused for the final active System Admin."""
+    if not await is_system_admin(db, account_id):
+        raise AccountStateError
     await _ensure_not_final_system_admin(db, account_id)
     await db.execute(
         update(SystemAdminGrant)

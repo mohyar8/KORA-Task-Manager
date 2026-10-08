@@ -29,7 +29,7 @@ All four checks (pytest, ruff check, ruff format --check, pyright) must pass bef
 
 - **Modular monolith with domain-first vertical slices.** Each business domain gets its own package under `kora_api/`. That package owns its routes, schemas, services and persistence. Domains talk to each other only through explicit public interfaces, never through each other's internals.
 - Create a domain package only when you implement real behavior for it. Don't create empty placeholder folders.
-- No speculative abstractions: no generic base repositories, generic CRUD services or permission engines until a concrete need is approved.
+- No speculative abstractions: no generic base repositories or generic CRUD services. Authorization goes through the existing evaluator (`access/evaluation.py`); do not add a second mechanism.
 - Keep `main.py` (the app factory) and route handlers thin. Logic belongs in the domain's services.
 - `core/` holds cross-cutting infrastructure only (config, and the DB engine/session in `core/database.py`). It contains no business logic.
 - All ORM models subclass `kora_api.core.database.Base`. Get sessions through the `get_db_session` dependency, and override it in tests. Never open a module-level session or connection.
@@ -48,6 +48,28 @@ All four checks (pytest, ruff check, ruff format --check, pyright) must pass bef
 - Never log or return passwords, password hashes, session tokens or CSRF tokens. 422 responses omit `input` (`core/errors.py`), and the engine hides SQL parameters.
 - System Admin is a separate grant, not an organizational role, and gives no implicit access to operational data. The final active System Admin can never be deactivated or have the grant revoked.
 - Policy values (password, session, throttle) live in `access/policy.py`. Change them only with approval.
+
+## Organization & authorization
+
+- Dependency direction: `organization` → `access`, never the reverse. `access` reads organization data only through `access/org_facts.OrganizationFacts`, which `organization/facts.py` implements and `create_app` installs. A test enforces this.
+- Guard permission-scoped work with `CurrentAccess`. Services must call `snapshot.require(permission, unit_id)` themselves, and lists must filter with `snapshot.units_with(permission)`. Denials return 403. Never special-case role keys or System Admin in access checks.
+- System Admin–only routes use `SystemAdmin` and live under `/api/v1/admin`. A test asserts that every `/admin` route rejects non-admins.
+- New permissions need approval, a `Permission` enum entry, and a data migration that seeds the catalog (and any defaults).
+- History tables are append-only (`valid_from`/`valid_to` plus who made the change): close the current row, flush, then insert the new one. Never update in place or delete.
+- Member invariants (one open Team placement and one open role; Team-level roles follow the current Team) are enforced in `organization/members.py`.
+- Other domains read organization data only through `organization/queries.py`, and react to Member changes through `organization/events.py` listeners, registered in `create_app`. `organization` never imports them.
+
+## Tasks (`kora_api.tasks`)
+
+- All task rules live in `tasks/service.py` (and `tasks/series.py`). Each operation loads a `TaskActor` (account, active Member, access snapshot) and checks permissions itself.
+- Never hard-delete tasks or comments. Status, scope (`task_scope_history`), assignments (`task_assignments`) and comments are tracked over time. Record task-local events with `service.record(...)`; there is no general audit log.
+- Any operation that can make an assignee ineligible (scope or membership change) must call `remove_ineligible_assignees`, which records the reason.
+
+## Announcements & notifications
+
+- Announcement rules live in `announcements/service.py`; each operation checks access itself. Never hard-delete, and never change recipients after publication; edits add a new version.
+- Create notifications with `notifications.service.notify(...)` inside the same transaction as the triggering change. It excludes the actor and applies preferences. Store only a short summary; content is redacted on read when the source is no longer visible.
+- A new notification source must register a checker in `create_app` (`app.state.notification_sources`). `notifications` must never import a source module; a test enforces this.
 
 ## Domain rules that constrain design
 
