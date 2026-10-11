@@ -1,10 +1,10 @@
 # KORA Internal Operations Platform — Backend Project State
 
-_Last updated: 2026-10-08 (Milestone 5B)_
+_Last updated: 2026-10-08 (Milestone 5C)_
 
 ## Current phase
 
-Tasks and communication foundation. Authentication, the organization structure, Members, roles, scope-aware authorization, scoped tasks, announcements and in-app notifications are implemented. There is no calendar, chat, file, email/push or general audit module.
+Tasks, communication and calendar foundation. Authentication, the organization structure, Members, roles, scope-aware authorization, scoped tasks, announcements, in-app notifications, and calendar events and meetings are implemented. There is no chat, file, reminder, email/push or general audit module.
 
 ## Repository baseline
 
@@ -21,6 +21,8 @@ Tasks and communication foundation. Authentication, the organization structure, 
   - `f2de4d1ebabc`, adds `tasks.series_template_key`, which links series subtasks to their template.
   - `01947ff726ab`, announcements and notifications schema.
   - `e8a4b2d6c1f3`, seeds the announcement permissions and their role defaults.
+  - `9ddea54afcb3`, calendar schema plus the `calendar_event` notification category. The downgrade rebuilds the enum.
+  - `a3c7e5f9d2b4`, seeds the calendar permissions and their role defaults.
 - `kora_api.access`:
   - Endpoints under `/api/v1/auth`: sign-in, sign-out, sign-out-all, me, change-password.
   - Argon2id hashing, server-side sessions, CSRF protection, a per-username login throttle, and the temporary-password gate (`CurrentAccount`).
@@ -49,6 +51,10 @@ Tasks and communication foundation. Authentication, the organization structure, 
   - A generic in-app module with `notifications` and `notification_preferences` tables.
   - Routes `/api/v1/notifications`: list (`unread_only`), get, read, read-all, delete, delete-all, and get/set preferences.
   - Source modules register access checkers in `create_app` (`app.state.notification_sources`).
+- `kora_api.calendar`:
+  - Tables: `calendar_events`, `calendar_invitations` and `calendar_event_history`.
+  - `/api/v1/calendar` is the merged "my calendar" for a time range (`from`/`to`, with a time zone, at most 366 days).
+  - `/api/v1/calendar/events`: list, create, get, edit, cancel, add or remove invitees, invitation history and event history.
 
 ## Confirmed technical decisions
 
@@ -99,6 +105,7 @@ Tasks and communication foundation. Authentication, the organization structure, 
   - `task.view` and `task.create` are defaults for every role, at its assigned unit.
   - `task.manage` is a default for the Event/Project Leader and Deputy Leader (KORA), the PMO Leader (PMO), the Administration Manager (its Administration) and the Team Leader (its Team). The PMO Member and Member don't get it.
   - `announcement.publish` and `announcement.manage` follow the same pattern as `task.manage`: the Event/Project Leader, Deputy Leader, PMO Leader, Administration Manager and Team Leader get both at their assigned unit; the PMO Member and Member don't.
+  - `calendar.create` is a default for every role at its assigned unit. `calendar.manage` follows the `task.manage` pattern; the PMO Member and Member don't get it.
   - Role defaults apply only through an active Member's open role assignment, covering the role's unit and everything beneath it.
   - Overrides (grant/deny per account, permission and unit) apply to any active account, Member or not. A reason is required; there is no expiry, and a System Admin ends them.
   - Precedence: the most specific unit on the chain that has an override decides; deny beats grant at the same unit; otherwise role defaults apply.
@@ -172,7 +179,24 @@ Tasks and communication foundation. Authentication, the organization structure, 
     - Actions on a single occurrence still notify per task.
   - Listing and opening re-check access to the source. Notifications whose source the reader can no longer see are redacted (`summary` null, `redacted` true); the source route still returns 403.
   - Read and delete apply only to the reader's own records. Deletion is soft.
-- Dependency direction: `access` ← `organization` ← `tasks` / `announcements` → `notifications` → `access`. `notifications` imports no source module.
+- Calendar:
+  - One entity with type `event` or `meeting`. Fields: title; start and end times (sent with an offset, stored in UTC, end after start); organizer; fixed scope; state (`scheduled` or `cancelled`); optional description; at most one location method (`location_text` or an http(s) `online_url`).
+  - Not included: recurrence, drafts, RSVP, attendance, attachments, comments or hard deletion.
+  - Creating: an active Member with `calendar.create` at the scope. One or more invitees, each an active Member within the scope (Team or role unit).
+  - Who can see an event: the active organizer, current invitees (who keep access after moving scope), and current `calendar.manage` holders at the scope. Lists omit events the caller can't see, and direct access returns 403.
+  - Edit, cancel and manage invitations: the organizer or a scoped manager. An edit that includes `scope_unit_id` is rejected (422); the scope can't change.
+  - Invitation privacy: only the organizer and scoped managers get the full current invitee list (`invitee_member_ids`) and the invitation history. Invitees see the event details and only their own invitation (`my_invitation`); `invitee_member_ids` is null for them.
+  - Removing an invitee ends their invitation row (revoking access) while keeping it in the invitation history. A new invitee must be within the scope at that time, and the last invitee can't be removed.
+  - Cancelling keeps everything and makes the event read-only.
+  - History: event-local `calendar_event_history` (created, updated, cancelled, invitee added or removed).
+  - "My calendar" merges accessible events overlapping the range with due dates of `new` and `in_progress` tasks the caller created or is assigned to. Task access is re-checked; the due dates are derived through `tasks.service.due_tasks` and never stored or edited in calendar.
+  - Notifications (`calendar_event` category, enabled by default):
+    - creating: one `invited` per invitee, not the organizer;
+    - adding an invitee: `invited` to that invitee;
+    - editing: one `updated` to current invitees, not the actor;
+    - cancelling: one `cancelled` to current invitees, not the actor;
+    - removing an invitee: silent.
+- Dependency direction: `access` ← `organization` ← `tasks` / `announcements` / `calendar` → `notifications` → `access`. `calendar` reads `tasks` (due dates) only. `notifications` imports no source module.
 
 ## Functional scope
 
@@ -217,6 +241,7 @@ Five internal domains:
 | M4A: Organization structure, Members, roles and scoped access | Done |
 | M5A: Task-management foundation (tasks, subtasks, comments, history, weekly series) | Done |
 | M5B: Announcements and in-app notifications | Done |
+| M5C: Calendar events and meetings, merged calendar with task due dates | Done |
 
 ## Next intended work
 

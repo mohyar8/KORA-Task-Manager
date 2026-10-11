@@ -202,6 +202,34 @@ async def list_tasks(
     return [TaskView(t, assignees[t.id]) for t in tasks if can_view(actor, t, assignees[t.id])]
 
 
+async def due_tasks(
+    db: AsyncSession, access: AccessContext, starts_at: datetime, ends_at: datetime
+) -> list[TaskView]:
+    """Open (`new`/`in_progress`) tasks due in [starts_at, ends_at) that the caller created or is
+    currently assigned to, re-checked for normal task visibility. Read-only (calendar view)."""
+    actor = await actor_for(db, access)
+    if actor.member_id is None:
+        return []
+    assigned = select(TaskAssignment.task_id).where(
+        TaskAssignment.member_id == actor.member_id, TaskAssignment.valid_to.is_(None)
+    )
+    tasks = list(
+        await db.scalars(
+            select(Task)
+            .where(
+                or_(Task.created_by_member_id == actor.member_id, Task.id.in_(assigned)),
+                Task.status.in_(OPEN_STATUSES),
+                Task.due_at.is_not(None),
+                Task.due_at >= starts_at,
+                Task.due_at < ends_at,
+            )
+            .order_by(Task.due_at)
+        )
+    )
+    assignees = await assignees_of(db, (t.id for t in tasks))
+    return [TaskView(t, assignees[t.id]) for t in tasks if can_view(actor, t, assignees[t.id])]
+
+
 # --- Creation -----------------------------------------------------------------------------------
 
 

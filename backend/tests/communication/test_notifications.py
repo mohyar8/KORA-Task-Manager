@@ -86,6 +86,7 @@ async def test_preferences_default_enabled_and_are_respected(
             "task_comment",
             "announcement_new",
             "announcement_change",
+            "calendar_event",
         ],
         True,
     )

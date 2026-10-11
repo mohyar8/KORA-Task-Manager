@@ -6,6 +6,7 @@ from fastapi import FastAPI
 from kora_api.access.dependencies import register_access_error_handlers
 from kora_api.announcements.service import visible_announcement_ids
 from kora_api.api.router import api_router
+from kora_api.calendar.service import visible_event_ids
 from kora_api.core.config import Settings, get_settings
 from kora_api.core.database import create_engine, create_session_factory
 from kora_api.core.errors import register_error_handlers
@@ -45,6 +46,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         "task": visible_task_ids,
         "task_series": visible_series_ids,
         "announcement": visible_announcement_ids,
+        "calendar_event": visible_event_ids,
     }
     register_error_handlers(app)
     register_access_error_handlers(app)

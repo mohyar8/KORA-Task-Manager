@@ -38,8 +38,10 @@ def _imports(package: str) -> list[tuple[str, str]]:
         ("access", ("kora_api.organization", "kora_api.tasks")),
         ("organization", ("kora_api.tasks", "kora_api.announcements", "kora_api.notifications")),
         ("notifications", ("kora_api.tasks", "kora_api.announcements", "kora_api.organization")),
-        ("tasks", ("kora_api.announcements",)),
-        ("announcements", ("kora_api.tasks",)),
+        ("tasks", ("kora_api.announcements", "kora_api.calendar")),
+        ("announcements", ("kora_api.tasks", "kora_api.calendar")),
+        ("notifications", ("kora_api.calendar",)),
+        ("organization", ("kora_api.calendar",)),
     ],
 )
 def test_dependency_direction(package: str, forbidden: tuple[str, ...]) -> None:
@@ -62,6 +64,8 @@ async def test_seeded_catalog_matches_code(db_session: AsyncSession) -> None:
         "task.manage",
         "announcement.publish",
         "announcement.manage",
+        "calendar.create",
+        "calendar.manage",
     }
 
     roles = {r.key: (r.name, r.unit_kind) for r in await db_session.scalars(select(OrgRole))}
@@ -82,6 +86,8 @@ async def test_seeded_catalog_matches_code(db_session: AsyncSession) -> None:
         | {(role, "task.manage") for role in task_managers}
         | {(role, "announcement.publish") for role in task_managers}
         | {(role, "announcement.manage") for role in task_managers}
+        | {(role, "calendar.create") for role in every_role}
+        | {(role, "calendar.manage") for role in task_managers}
     )
 
 

@@ -71,6 +71,12 @@ All four checks (pytest, ruff check, ruff format --check, pyright) must pass bef
 - Create notifications with `notifications.service.notify(...)` inside the same transaction as the triggering change. It excludes the actor and applies preferences. Store only a short summary; content is redacted on read when the source is no longer visible.
 - A new notification source must register a checker in `create_app` (`app.state.notification_sources`). `notifications` must never import a source module; a test enforces this.
 
+## Calendar (`kora_api.calendar`)
+
+- Event rules live in `calendar/service.py`; each operation checks access itself. The scope is fixed; cancel instead of deleting, and cancelled events are read-only.
+- Invitations are history rows: remove an invitee by ending the row, never by deleting it.
+- Task due dates in the calendar come from `tasks.service.due_tasks` (read-only). Never copy task data into calendar tables or change tasks from calendar routes.
+
 ## Domain rules that constrain design
 
 - Authorization = role defaults + organizational scope + per-user overrides.

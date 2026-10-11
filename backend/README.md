@@ -57,4 +57,8 @@ Tasks live at `/api/v1/tasks`, and weekly series at `/api/v1/task-series`. Membe
 
 Announcements live at `/api/v1/announcements`; leaders and managers get `announcement.publish` and `announcement.manage` at their role's unit. In-app notifications and per-category preferences live at `/api/v1/notifications`.
 
+## Calendar
+
+Events and meetings live at `/api/v1/calendar/events`. `GET /api/v1/calendar?from=...&to=...` (times with an offset, at most 366 days) returns your events together with the due dates of open tasks you created or are assigned to.
+
 API docs (`/docs`, `/redoc`, `/openapi.json`) are on only in the `local` and `test` environments, and always off in `staging` and `production`.
