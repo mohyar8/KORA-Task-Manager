@@ -2,7 +2,10 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 import pytest
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from kora_api.tasks.models import TaskEvent
 from tests.tasks.conftest import TASKS, Api, Login, World
 
 pytestmark = pytest.mark.anyio
@@ -110,8 +113,44 @@ async def test_authors_edit_and_soft_delete_their_own_comments(
         for e in (await other.get(f"{TASKS}/{task['id']}/history")).json()
         if e["kind"].startswith("comment")
     ]
+    # The deleted comment's earlier text is gone from history too; the events remain.
     assert events == [
         ("comment_added", None),
-        ("comment_edited", "First"),
+        ("comment_edited", None),
         ("comment_deleted", None),
     ]
+
+
+async def test_history_hides_text_of_deleted_comments_only(
+    world: World, login: Login, new_task: NewTask, db_session: AsyncSession
+) -> None:
+    author = await login("m_a1")
+    task = await new_task(author, "team_a1", ["m_a1b"])
+    url = f"{TASKS}/{task['id']}/comments"
+    kept = (await author.post(url, {"body": "Kept v1"})).json()
+    removed = (await author.post(url, {"body": "Secret v1"})).json()
+    await author.patch(f"{url}/{kept['id']}", {"body": "Kept v2"})
+    await author.patch(f"{url}/{removed['id']}", {"body": "Secret v2"})
+    await author.patch(f"{url}/{removed['id']}", {"body": "Secret v3"})
+    await author.post(f"{url}/{removed['id']}/delete")
+
+    for viewer in (author, await login("tl_a1"), await login("m_a1b")):
+        response = await viewer.get(f"{TASKS}/{task['id']}/history")
+        assert response.status_code == 200
+        assert "Secret" not in response.text
+        edits = [e for e in response.json() if e["kind"] == "comment_edited"]
+        assert [e["data"].get("previous_body") for e in edits] == ["Kept v1", None, None]
+        for event in edits[1:]:
+            assert event["data"]["comment_id"] == removed["id"]
+            assert event["data"]["content_removed"] is True
+            assert event["actor_account_id"] == str(world.account_ids["m_a1"])
+            assert event["created_at"]
+        kinds = [e["kind"] for e in response.json() if e["data"].get("comment_id") == removed["id"]]
+        assert kinds == ["comment_added", "comment_edited", "comment_edited", "comment_deleted"]
+        assert "Secret" not in (await viewer.get(url)).text
+
+    # Append-only: the stored events are unchanged; only the API response is redacted.
+    stored = await db_session.scalars(
+        select(TaskEvent.data).where(TaskEvent.kind == "comment_edited")
+    )
+    assert "Secret v1" in {d.get("previous_body") for d in stored}

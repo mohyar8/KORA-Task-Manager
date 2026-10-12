@@ -19,6 +19,7 @@ from kora_api.core import clock
 from kora_api.core.config import Settings
 from kora_api.core.database import get_db_session
 from kora_api.main import create_app
+from tests import response_contract
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent
 # A dedicated database on the local compose PostgreSQL; never the development database.
@@ -44,6 +45,7 @@ def anyio_backend() -> str:
 async def client() -> AsyncIterator[AsyncClient]:
     """Client for tests that need no database."""
     app = create_app(Settings(environment="test"))
+    app.add_middleware(response_contract.RecordResponses)
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         yield ac
 
@@ -107,6 +109,7 @@ def db_app(test_database_url: str, db_session: AsyncSession) -> FastAPI:
         yield db_session
 
     app.dependency_overrides[get_db_session] = _session_override
+    app.add_middleware(response_contract.RecordResponses)
     return app
 
 
@@ -144,3 +147,11 @@ def frozen_clock(monkeypatch: pytest.MonkeyPatch) -> FrozenClock:
     frozen = FrozenClock(clock.utcnow())
     monkeypatch.setattr(clock, "utcnow", lambda: frozen.now)
     return frozen
+
+
+def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
+    """Fail the run if any response seen by the suite contradicts the OpenAPI document."""
+    problems = response_contract.undocumented(create_app(Settings(environment="test")).openapi())
+    if problems:
+        print("\nResponses not documented in OpenAPI:\n  " + "\n  ".join(problems))
+        session.exitstatus = pytest.ExitCode.TESTS_FAILED

@@ -8,11 +8,12 @@ from pydantic import BaseModel
 
 from kora_api.access.dependencies import CurrentAccess
 from kora_api.core.database import DbSession
+from kora_api.core.errors import AUTHENTICATED, errors
 from kora_api.notifications import service
 from kora_api.notifications.models import NotificationCategory
 from kora_api.notifications.service import SourceAccess, source_checkers
 
-router = APIRouter(prefix="/notifications", tags=["notifications"])
+router = APIRouter(prefix="/notifications", tags=["notifications"], responses=AUTHENTICATED)
 
 Checkers = Annotated[Mapping[str, SourceAccess], Depends(source_checkers)]
 
@@ -82,7 +83,7 @@ async def delete_all(access: CurrentAccess, db: DbSession) -> None:
     await service.delete_all(db, access)
 
 
-@router.get("/{notification_id}")
+@router.get("/{notification_id}", responses=errors(404))
 async def get_notification(
     notification_id: uuid.UUID, access: CurrentAccess, db: DbSession, checkers: Checkers
 ) -> NotificationResponse:
@@ -92,7 +93,7 @@ async def get_notification(
         raise _not_found() from None
 
 
-@router.post("/{notification_id}/read")
+@router.post("/{notification_id}/read", responses=errors(404))
 async def mark_read(
     notification_id: uuid.UUID, access: CurrentAccess, db: DbSession, checkers: Checkers
 ) -> NotificationResponse:
@@ -102,7 +103,9 @@ async def mark_read(
         raise _not_found() from None
 
 
-@router.post("/{notification_id}/delete", status_code=status.HTTP_204_NO_CONTENT)
+@router.post(
+    "/{notification_id}/delete", status_code=status.HTTP_204_NO_CONTENT, responses=errors(404)
+)
 async def delete_notification(
     notification_id: uuid.UUID, access: CurrentAccess, db: DbSession
 ) -> None:

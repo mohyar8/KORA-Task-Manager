@@ -1,10 +1,14 @@
 # KORA Internal Operations Platform — Backend Project State
 
-_Last updated: 2026-10-12 (Milestone 7)_
+_Last updated: 2026-10-12 (Milestone 8B)_
 
 ## Current phase
 
 Governance foundation. Authentication, the organization structure, Members, roles, scope-aware authorization, scoped tasks, announcements, in-app notifications, calendar events and meetings, and a central append-only audit log are implemented. There is no chat, file, reminder or email/push module.
+
+## API contract
+
+`docs/api/API_CONTRACT.md` is the authoritative contract for all 80 mounted `/api/v1` operations: conventions, session/CSRF rules, permissions, schemas, status codes and cross-module rules. §15 lists the discrepancies resolved in M8B and those still open. OpenAPI documents every error status and the actual 422 format, and the test suite fails if any response it observes is undocumented (`tests/response_contract.py`). Update both whenever a route or its behavior changes.
 
 ## Repository baseline
 
@@ -100,7 +104,7 @@ Governance foundation. Authentication, the organization structure, Members, role
   - Archiving a unit is refused while it has active units under it, active Members in it, or open role assignments scoped to it.
 - Members:
   - Required: account link (the only unique field), full name and status.
-  - Optional: university/student ID, phone, email, major/specialization and academic year. Blank values are stored as null.
+  - Optional: university/student ID, phone, email (syntax-checked), major/specialization and academic year. Blank values are stored as null.
   - An active Member has exactly one open Team placement and one open role (partial unique indexes).
   - Team Leader and Member roles always use the Member's current Team, so a Team change moves the role with the Member. A Team may have several Team Leaders.
   - Deactivation, in one transaction, ends the Team placement and role, deactivates the account and revokes its sessions. Reactivation requires a new placement and role.
@@ -142,7 +146,7 @@ Governance foundation. Authentication, the organization structure, Members, role
   - Comments:
     - Plain text, no attachments. The creator, assignees and scoped managers may comment.
     - Authors can edit their own comments; the earlier text is kept in the history.
-    - Deletion is soft: the comment stays listed with no body and a `deleted_at` time.
+    - Deletion is soft: the comment stays listed with no body and a `deleted_at` time. Its text, including earlier edited versions, is also removed from task history responses; the events themselves and the stored rows are kept.
   - History: task-local `task_events` (lifecycle, assignment, scope, comment), separate from the central audit log.
   - Weekly series:
     - Requires a first due time and an end time.
@@ -264,6 +268,7 @@ Five internal domains:
 | M5C: Calendar events and meetings, merged calendar with task due dates | Done |
 | M6A: Central append-only audit log with System Admin read API | Done |
 | M7: Backend release-readiness and integration verification | Done |
+| M8B: API contract corrections (deleted-comment history privacy, OpenAPI accuracy, member email validation) | Done |
 
 ## Release readiness (M7)
 

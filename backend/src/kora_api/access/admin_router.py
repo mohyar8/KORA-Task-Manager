@@ -21,10 +21,12 @@ from kora_api.access.admin_schemas import (
 from kora_api.access.dependencies import CurrentAccount, OrgFacts, SystemAdmin
 from kora_api.access.models import PermissionOverride, RolePermissionDefault, UserAccount
 from kora_api.access.org_facts import OrganizationFacts
+from kora_api.access.permissions import Permission
 from kora_api.core.database import DbSession
+from kora_api.core.errors import AUTHENTICATED, errors
 
-admin_router = APIRouter(prefix="/admin", tags=["admin"])
-access_router = APIRouter(prefix="/access", tags=["access"])
+admin_router = APIRouter(prefix="/admin", tags=["admin"], responses=AUTHENTICATED)
+access_router = APIRouter(prefix="/access", tags=["access"], responses=AUTHENTICATED)
 
 
 # --- Catalog and role defaults ------------------------------------------------------------------
@@ -33,7 +35,7 @@ access_router = APIRouter(prefix="/access", tags=["access"])
 @admin_router.get("/permissions")
 async def list_permissions(_: SystemAdmin, db: DbSession) -> list[PermissionResponse]:
     return [
-        PermissionResponse(key=p.key, description=p.description)
+        PermissionResponse(key=Permission(p.key), description=p.description)
         for p in await authorization.list_permissions(db)
     ]
 
@@ -43,7 +45,9 @@ async def list_role_defaults(_: SystemAdmin, db: DbSession) -> list[RoleDefaultR
     return [_role_default(row) for row in await authorization.list_role_defaults(db)]
 
 
-@admin_router.post("/role-defaults", status_code=status.HTTP_201_CREATED)
+@admin_router.post(
+    "/role-defaults", status_code=status.HTTP_201_CREATED, responses=errors(409, 422)
+)
 async def add_role_default(
     body: RoleDefaultRequest, admin: SystemAdmin, db: DbSession, facts: OrgFacts
 ) -> RoleDefaultResponse:
@@ -58,7 +62,7 @@ async def add_role_default(
     return _role_default(row)
 
 
-@admin_router.post("/role-defaults/{default_id}/end")
+@admin_router.post("/role-defaults/{default_id}/end", responses=errors(404, 409))
 async def end_role_default(
     default_id: uuid.UUID, admin: SystemAdmin, db: DbSession
 ) -> RoleDefaultResponse:
@@ -73,7 +77,7 @@ async def end_role_default(
 # --- Overrides ----------------------------------------------------------------------------------
 
 
-@admin_router.get("/accounts/{account_id}/overrides")
+@admin_router.get("/accounts/{account_id}/overrides", responses=errors(404))
 async def list_overrides(
     account_id: uuid.UUID, _: SystemAdmin, db: DbSession
 ) -> list[OverrideResponse]:
@@ -81,7 +85,11 @@ async def list_overrides(
     return [_override(row) for row in await authorization.list_overrides(db, account_id)]
 
 
-@admin_router.post("/accounts/{account_id}/overrides", status_code=status.HTTP_201_CREATED)
+@admin_router.post(
+    "/accounts/{account_id}/overrides",
+    status_code=status.HTTP_201_CREATED,
+    responses=errors(404, 409, 422),
+)
 async def create_override(
     account_id: uuid.UUID,
     body: OverrideRequest,
@@ -119,7 +127,7 @@ async def create_override(
     return _override(row)
 
 
-@admin_router.post("/overrides/{override_id}/end")
+@admin_router.post("/overrides/{override_id}/end", responses=errors(404, 409))
 async def end_override(
     override_id: uuid.UUID, admin: SystemAdmin, db: DbSession
 ) -> OverrideResponse:
@@ -134,7 +142,7 @@ async def end_override(
 # --- Effective access ---------------------------------------------------------------------------
 
 
-@admin_router.get("/accounts/{account_id}/effective-access")
+@admin_router.get("/accounts/{account_id}/effective-access", responses=errors(404, 422))
 async def inspect_effective_access(
     account_id: uuid.UUID,
     _: SystemAdmin,
@@ -177,7 +185,11 @@ async def list_system_admins(_: SystemAdmin, db: DbSession) -> list[SystemAdminR
     ]
 
 
-@admin_router.post("/accounts/{account_id}/system-admin", status_code=status.HTTP_201_CREATED)
+@admin_router.post(
+    "/accounts/{account_id}/system-admin",
+    status_code=status.HTTP_201_CREATED,
+    responses=errors(404, 409),
+)
 async def grant_system_admin(
     account_id: uuid.UUID, admin: SystemAdmin, db: DbSession
 ) -> SystemAdminResponse:
@@ -199,7 +211,9 @@ async def grant_system_admin(
 
 
 @admin_router.post(
-    "/accounts/{account_id}/system-admin/revoke", status_code=status.HTTP_204_NO_CONTENT
+    "/accounts/{account_id}/system-admin/revoke",
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses=errors(404, 409),
 )
 async def revoke_system_admin(account_id: uuid.UUID, admin: SystemAdmin, db: DbSession) -> None:
     try:
@@ -251,7 +265,7 @@ def _role_default(row: RolePermissionDefault) -> RoleDefaultResponse:
     return RoleDefaultResponse(
         id=row.id,
         role_key=row.role_key,
-        permission=row.permission_key,
+        permission=Permission(row.permission_key),
         valid_from=row.valid_from,
         valid_to=row.valid_to,
         created_by_account_id=row.created_by_account_id,
@@ -263,7 +277,7 @@ def _override(row: PermissionOverride) -> OverrideResponse:
     return OverrideResponse(
         id=row.id,
         account_id=row.account_id,
-        permission=row.permission_key,
+        permission=Permission(row.permission_key),
         unit_id=row.unit_id,
         effect=row.effect,
         reason=row.reason,

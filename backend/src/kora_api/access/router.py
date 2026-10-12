@@ -18,13 +18,14 @@ from kora_api.access.schemas import (
     SignInRequest,
 )
 from kora_api.core.database import DbSession
+from kora_api.core.errors import errors
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 INVALID_CREDENTIALS = "Invalid username or password."
 
 
-@router.post("/sign-in")
+@router.post("/sign-in", responses=errors((401, "Invalid username or password."), 422, 429))
 async def sign_in(body: SignInRequest, response: Response, db: DbSession) -> SessionResponse:
     try:
         issued = await service.sign_in(db, body.username, body.password)
@@ -39,24 +40,37 @@ async def sign_in(body: SignInRequest, response: Response, db: DbSession) -> Ses
     return await _start_session(db, response, issued)
 
 
-@router.post("/sign-out", status_code=status.HTTP_204_NO_CONTENT)
+@router.post(
+    "/sign-out",
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses=errors(401, (403, "CSRF token missing or invalid.")),
+)
 async def sign_out(auth: AuthenticatedSession, response: Response, db: DbSession) -> None:
     await service.sign_out(db, auth.session)
     _clear_cookies(response)
 
 
-@router.post("/sign-out-all", status_code=status.HTTP_204_NO_CONTENT)
+@router.post(
+    "/sign-out-all",
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses=errors(401, (403, "CSRF token missing or invalid.")),
+)
 async def sign_out_all(auth: AuthenticatedSession, response: Response, db: DbSession) -> None:
     await service.sign_out_all(db, auth.account.id)
     _clear_cookies(response)
 
 
-@router.get("/me")
+@router.get("/me", responses=errors(401))
 async def current_account(auth: AuthenticatedSession, db: DbSession) -> AccountResponse:
     return await _account_response(db, auth.account)
 
 
-@router.post("/change-password")
+@router.post(
+    "/change-password",
+    responses=errors(
+        (400, "Current password is incorrect."), 401, (403, "CSRF token missing or invalid."), 422
+    ),
+)
 async def change_password(
     body: ChangePasswordRequest, auth: AuthenticatedSession, response: Response, db: DbSession
 ) -> SessionResponse:

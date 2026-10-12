@@ -17,8 +17,9 @@ from kora_api.access.dependencies import SystemAdmin
 from kora_api.audit import service as audit
 from kora_api.audit.models import AuditRecord
 from kora_api.core.database import DbSession
+from kora_api.core.errors import AUTHENTICATED, errors
 
-router = APIRouter(prefix="/admin/audit-records", tags=["admin"])
+router = APIRouter(prefix="/admin/audit-records", tags=["admin"], responses=AUTHENTICATED)
 
 
 class AuditRecordResponse(BaseModel):
@@ -40,7 +41,7 @@ class AuditPageResponse(BaseModel):
     next_cursor: int | None
 
 
-@router.get("")
+@router.get("", responses=errors(422))
 async def list_audit_records(
     _: SystemAdmin,
     db: DbSession,
@@ -77,7 +78,7 @@ async def list_audit_records(
     return AuditPageResponse(items=[_record(r) for r in page.records], next_cursor=page.next_cursor)
 
 
-@router.get("/{record_id}")
+@router.get("/{record_id}", responses=errors(404))
 async def get_audit_record(
     record_id: uuid.UUID, _: SystemAdmin, db: DbSession
 ) -> AuditRecordResponse:

@@ -11,7 +11,7 @@ Reason = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, m
 
 
 class PermissionResponse(BaseModel):
-    key: str
+    key: Permission
     description: str
 
 
@@ -23,7 +23,7 @@ class RoleDefaultRequest(BaseModel):
 class RoleDefaultResponse(BaseModel):
     id: uuid.UUID
     role_key: str
-    permission: str
+    permission: Permission
     valid_from: datetime
     valid_to: datetime | None
     created_by_account_id: uuid.UUID | None
@@ -43,7 +43,7 @@ class OverrideRequest(BaseModel):
 class OverrideResponse(BaseModel):
     id: uuid.UUID
     account_id: uuid.UUID
-    permission: str
+    permission: Permission
     unit_id: uuid.UUID
     effect: OverrideEffect
     reason: str
@@ -63,7 +63,7 @@ class UnitDecisionResponse(BaseModel):
 
 
 class PermissionAccessResponse(BaseModel):
-    permission: str
+    permission: Permission
     units: list[UnitDecisionResponse]
 
 

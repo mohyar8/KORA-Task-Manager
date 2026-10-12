@@ -9,7 +9,7 @@ from kora_api.api.router import api_router
 from kora_api.calendar.service import visible_event_ids
 from kora_api.core.config import Settings, get_settings
 from kora_api.core.database import create_engine, create_session_factory
-from kora_api.core.errors import register_error_handlers
+from kora_api.core.errors import document_validation_errors, register_error_handlers
 from kora_api.organization import events as organization_events
 from kora_api.organization.facts import SqlOrganizationFacts
 from kora_api.tasks.series import visible_series_ids
@@ -49,6 +49,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         "calendar_event": visible_event_ids,
     }
     register_error_handlers(app)
+    document_validation_errors(app)
     register_access_error_handlers(app)
     app.include_router(api_router)
     return app

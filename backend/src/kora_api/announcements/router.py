@@ -10,8 +10,9 @@ from kora_api.access.dependencies import CurrentAccess
 from kora_api.announcements import service
 from kora_api.announcements.models import AnnouncementState
 from kora_api.core.database import DbSession
+from kora_api.core.errors import AUTHENTICATED, errors
 
-router = APIRouter(prefix="/announcements", tags=["announcements"])
+router = APIRouter(prefix="/announcements", tags=["announcements"], responses=AUTHENTICATED)
 
 Title = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=300)]
 Body = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=20_000)]
@@ -110,7 +111,7 @@ async def list_announcements(
     return [_response(v) for v in await service.list_announcements(db, access, state=state)]
 
 
-@router.post("", status_code=status.HTTP_201_CREATED)
+@router.post("", status_code=status.HTTP_201_CREATED, responses=errors(422))
 async def create_draft(
     body: CreateAnnouncementRequest, access: CurrentAccess, db: DbSession
 ) -> AnnouncementResponse:
@@ -121,7 +122,7 @@ async def create_draft(
     )
 
 
-@router.get("/{announcement_id}")
+@router.get("/{announcement_id}", responses=errors(404))
 async def get_announcement(
     announcement_id: uuid.UUID, access: CurrentAccess, db: DbSession
 ) -> AnnouncementResponse:
@@ -129,28 +130,28 @@ async def get_announcement(
     return await _call(service.get_announcement(db, access, announcement_id))
 
 
-@router.patch("/{announcement_id}")
+@router.patch("/{announcement_id}", responses=errors(404, 409))
 async def edit_announcement(
     announcement_id: uuid.UUID, body: EditAnnouncementRequest, access: CurrentAccess, db: DbSession
 ) -> AnnouncementResponse:
     return await _call(service.edit(db, access, announcement_id, title=body.title, body=body.body))
 
 
-@router.post("/{announcement_id}/publish")
+@router.post("/{announcement_id}/publish", responses=errors(404, 409, 422))
 async def publish(
     announcement_id: uuid.UUID, body: PublishRequest, access: CurrentAccess, db: DbSession
 ) -> AnnouncementResponse:
     return await _call(service.publish(db, access, announcement_id, body.recipient_member_ids))
 
 
-@router.post("/{announcement_id}/withdraw")
+@router.post("/{announcement_id}/withdraw", responses=errors(404, 409))
 async def withdraw(
     announcement_id: uuid.UUID, access: CurrentAccess, db: DbSession
 ) -> AnnouncementResponse:
     return await _call(service.withdraw(db, access, announcement_id))
 
 
-@router.get("/{announcement_id}/versions")
+@router.get("/{announcement_id}/versions", responses=errors(404))
 async def list_versions(
     announcement_id: uuid.UUID, access: CurrentAccess, db: DbSession
 ) -> list[VersionResponse]:
@@ -170,7 +171,7 @@ async def list_versions(
     ]
 
 
-@router.get("/{announcement_id}/recipients")
+@router.get("/{announcement_id}/recipients", responses=errors(404))
 async def recipient_statuses(
     announcement_id: uuid.UUID, access: CurrentAccess, db: DbSession
 ) -> list[RecipientStatusResponse]:

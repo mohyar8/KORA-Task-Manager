@@ -1,3 +1,4 @@
+import re
 import uuid
 from datetime import datetime
 from typing import Annotated
@@ -26,9 +27,21 @@ OptionalText32 = Annotated[
     Annotated[str, StringConstraints(strip_whitespace=True, max_length=32)] | None,
     AfterValidator(_blank_to_none),
 ]
+# One "@", no whitespace, and a dot in the domain. Deliberately simple: deliverability is not
+# checked, and no dependency is needed.
+_EMAIL = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+
+
+def _valid_email(value: str | None) -> str | None:
+    if value is not None and not _EMAIL.fullmatch(value):
+        raise ValueError("value is not a valid email address")
+    return value
+
+
 OptionalEmail = Annotated[
     Annotated[str, StringConstraints(strip_whitespace=True, max_length=254)] | None,
     AfterValidator(_blank_to_none),
+    AfterValidator(_valid_email),
 ]
 
 
@@ -85,13 +98,20 @@ class ReactivateMemberRequest(RoleFields):
     team_id: uuid.UUID
 
 
-class MemberResponse(MemberProfileFields):
+class MemberResponse(BaseModel):
     id: uuid.UUID
     account_id: uuid.UUID
     username: str
+    full_name: str
+    university_id: str | None
+    phone: str | None
+    email: str | None
+    major: str | None
+    academic_year: str | None
     status: MemberStatus
+    # Null while deactivated.
     team_id: uuid.UUID | None
-    role_key: str | None
+    role_key: RoleKey | None
     role_unit_id: uuid.UUID | None
 
 

@@ -6,9 +6,10 @@ from fastapi import APIRouter, HTTPException, Query, status
 
 from kora_api.access.dependencies import CurrentAccess
 from kora_api.core.database import DbSession
+from kora_api.core.errors import AUTHENTICATED, errors
 from kora_api.tasks import series as series_service
 from kora_api.tasks import service
-from kora_api.tasks.constants import TaskStatus
+from kora_api.tasks.constants import EventKind, TaskStatus
 from kora_api.tasks.models import TaskComment
 from kora_api.tasks.schemas import (
     AssigneeRequest,
@@ -20,6 +21,7 @@ from kora_api.tasks.schemas import (
     MoveTaskRequest,
     SeriesResponse,
     StatusRequest,
+    SubtaskTemplateResponse,
     TaskEventResponse,
     TaskFieldsRequest,
     TaskResponse,
@@ -27,8 +29,8 @@ from kora_api.tasks.schemas import (
     UpdateTaskRequest,
 )
 
-tasks_router = APIRouter(prefix="/tasks", tags=["tasks"])
-series_router = APIRouter(prefix="/task-series", tags=["tasks"])
+tasks_router = APIRouter(prefix="/tasks", tags=["tasks"], responses=AUTHENTICATED)
+series_router = APIRouter(prefix="/task-series", tags=["tasks"], responses=AUTHENTICATED)
 
 
 async def _call[T](call: Awaitable[T]) -> T:
@@ -62,7 +64,7 @@ async def list_tasks(
     return [_task(view) for view in views]
 
 
-@tasks_router.post("", status_code=status.HTTP_201_CREATED)
+@tasks_router.post("", status_code=status.HTTP_201_CREATED, responses=errors(422))
 async def create_task(
     body: CreateTaskRequest, access: CurrentAccess, db: DbSession
 ) -> TaskResponse:
@@ -79,13 +81,13 @@ async def create_task(
     return _task(view)
 
 
-@tasks_router.get("/{task_id}")
+@tasks_router.get("/{task_id}", responses=errors(404))
 async def get_task(task_id: uuid.UUID, access: CurrentAccess, db: DbSession) -> TaskResponse:
     actor = await service.actor_for(db, access)
     return _task(await _call(service.get_task(db, actor, task_id)))
 
 
-@tasks_router.patch("/{task_id}")
+@tasks_router.patch("/{task_id}", responses=errors(404, 422))
 async def update_task(
     task_id: uuid.UUID, body: UpdateTaskRequest, access: CurrentAccess, db: DbSession
 ) -> TaskResponse:
@@ -93,7 +95,7 @@ async def update_task(
     return _task(await _call(service.update_task(db, actor, task_id, body.changes())))
 
 
-@tasks_router.post("/{task_id}/status")
+@tasks_router.post("/{task_id}/status", responses=errors(404, 409))
 async def change_status(
     task_id: uuid.UUID, body: StatusRequest, access: CurrentAccess, db: DbSession
 ) -> TaskResponse:
@@ -101,7 +103,7 @@ async def change_status(
     return _task(await _call(service.change_status(db, actor, task_id, body.status)))
 
 
-@tasks_router.post("/{task_id}/assignees")
+@tasks_router.post("/{task_id}/assignees", responses=errors(404, 409, 422))
 async def add_assignee(
     task_id: uuid.UUID, body: AssigneeRequest, access: CurrentAccess, db: DbSession
 ) -> TaskResponse:
@@ -109,7 +111,7 @@ async def add_assignee(
     return _task(await _call(service.add_assignee(db, actor, task_id, body.member_id)))
 
 
-@tasks_router.post("/{task_id}/assignees/{member_id}/remove")
+@tasks_router.post("/{task_id}/assignees/{member_id}/remove", responses=errors(404, 422))
 async def remove_assignee(
     task_id: uuid.UUID, member_id: uuid.UUID, access: CurrentAccess, db: DbSession
 ) -> TaskResponse:
@@ -117,7 +119,7 @@ async def remove_assignee(
     return _task(await _call(service.remove_assignee(db, actor, task_id, member_id)))
 
 
-@tasks_router.post("/{task_id}/move")
+@tasks_router.post("/{task_id}/move", responses=errors(404, 422))
 async def move_task(
     task_id: uuid.UUID, body: MoveTaskRequest, access: CurrentAccess, db: DbSession
 ) -> TaskResponse:
@@ -125,7 +127,7 @@ async def move_task(
     return _task(await _call(service.move_task(db, actor, task_id, body.scope_unit_id)))
 
 
-@tasks_router.get("/{task_id}/subtasks")
+@tasks_router.get("/{task_id}/subtasks", responses=errors(404))
 async def list_subtasks(
     task_id: uuid.UUID, access: CurrentAccess, db: DbSession
 ) -> list[TaskResponse]:
@@ -134,7 +136,9 @@ async def list_subtasks(
     return [_task(view) for view in await service.list_tasks(db, actor, parent_id=task_id)]
 
 
-@tasks_router.post("/{task_id}/subtasks", status_code=status.HTTP_201_CREATED)
+@tasks_router.post(
+    "/{task_id}/subtasks", status_code=status.HTTP_201_CREATED, responses=errors(404, 422)
+)
 async def create_subtask(
     task_id: uuid.UUID, body: CreateSubtaskRequest, access: CurrentAccess, db: DbSession
 ) -> TaskResponse:
@@ -151,14 +155,14 @@ async def create_subtask(
     return _task(view)
 
 
-@tasks_router.get("/{task_id}/history")
+@tasks_router.get("/{task_id}/history", responses=errors(404))
 async def task_history(
     task_id: uuid.UUID, access: CurrentAccess, db: DbSession
 ) -> list[TaskEventResponse]:
     actor = await service.actor_for(db, access)
     return [
         TaskEventResponse(
-            kind=event.kind,
+            kind=EventKind(event.kind),
             actor_account_id=event.actor_account_id,
             data=event.data,
             created_at=event.created_at,
@@ -170,7 +174,7 @@ async def task_history(
 # --- Comments -----------------------------------------------------------------------------------
 
 
-@tasks_router.get("/{task_id}/comments")
+@tasks_router.get("/{task_id}/comments", responses=errors(404))
 async def list_comments(
     task_id: uuid.UUID, access: CurrentAccess, db: DbSession
 ) -> list[CommentResponse]:
@@ -178,7 +182,9 @@ async def list_comments(
     return [_comment(c) for c in await _call(service.list_comments(db, actor, task_id))]
 
 
-@tasks_router.post("/{task_id}/comments", status_code=status.HTTP_201_CREATED)
+@tasks_router.post(
+    "/{task_id}/comments", status_code=status.HTTP_201_CREATED, responses=errors(404)
+)
 async def add_comment(
     task_id: uuid.UUID, body: CommentRequest, access: CurrentAccess, db: DbSession
 ) -> CommentResponse:
@@ -186,7 +192,7 @@ async def add_comment(
     return _comment(await _call(service.add_comment(db, actor, task_id, body.body)))
 
 
-@tasks_router.patch("/{task_id}/comments/{comment_id}")
+@tasks_router.patch("/{task_id}/comments/{comment_id}", responses=errors(404, 409))
 async def edit_comment(
     task_id: uuid.UUID,
     comment_id: uuid.UUID,
@@ -198,7 +204,7 @@ async def edit_comment(
     return _comment(await _call(service.edit_comment(db, actor, task_id, comment_id, body.body)))
 
 
-@tasks_router.post("/{task_id}/comments/{comment_id}/delete")
+@tasks_router.post("/{task_id}/comments/{comment_id}/delete", responses=errors(404, 409))
 async def delete_comment(
     task_id: uuid.UUID, comment_id: uuid.UUID, access: CurrentAccess, db: DbSession
 ) -> CommentResponse:
@@ -209,7 +215,7 @@ async def delete_comment(
 # --- Weekly series ------------------------------------------------------------------------------
 
 
-@series_router.post("", status_code=status.HTTP_201_CREATED)
+@series_router.post("", status_code=status.HTTP_201_CREATED, responses=errors(422))
 async def create_series(
     body: CreateSeriesRequest, access: CurrentAccess, db: DbSession
 ) -> SeriesResponse:
@@ -238,13 +244,13 @@ async def create_series(
     return _series(view)
 
 
-@series_router.get("/{series_id}")
+@series_router.get("/{series_id}", responses=errors(404))
 async def get_series(series_id: uuid.UUID, access: CurrentAccess, db: DbSession) -> SeriesResponse:
     actor = await service.actor_for(db, access)
     return _series(await _call(series_service.get_series(db, actor, series_id)))
 
 
-@series_router.patch("/{series_id}")
+@series_router.patch("/{series_id}", responses=errors(404, 409, 422))
 async def update_series(
     series_id: uuid.UUID, body: UpdateSeriesRequest, access: CurrentAccess, db: DbSession
 ) -> SeriesResponse:
@@ -269,7 +275,7 @@ async def update_series(
     return _series(view)
 
 
-@series_router.post("/{series_id}/move")
+@series_router.post("/{series_id}/move", responses=errors(404, 409, 422))
 async def move_series(
     series_id: uuid.UUID, body: MoveTaskRequest, access: CurrentAccess, db: DbSession
 ) -> SeriesResponse:
@@ -279,7 +285,7 @@ async def move_series(
     )
 
 
-@series_router.post("/{series_id}/stop")
+@series_router.post("/{series_id}/stop", responses=errors(404, 409))
 async def stop_series(series_id: uuid.UUID, access: CurrentAccess, db: DbSession) -> SeriesResponse:
     actor = await service.actor_for(db, access)
     return _series(await _call(series_service.stop_series(db, actor, series_id)))
@@ -330,10 +336,10 @@ def _series(view: series_service.SeriesView) -> SeriesResponse:
         description=s.description,
         priority=s.priority,
         assignee_member_ids=s.assignee_member_ids,
-        subtask_templates=s.subtask_templates,
+        subtask_templates=[SubtaskTemplateResponse.model_validate(t) for t in s.subtask_templates],
         first_due_at=s.first_due_at,
         ends_at=s.ends_at,
-        status=s.status.value,
+        status=s.status,
         created_by_account_id=s.created_by_account_id,
         stopped_at=s.stopped_at,
         occurrence_ids=view.occurrence_ids,

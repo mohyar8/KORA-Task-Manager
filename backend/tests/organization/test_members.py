@@ -203,6 +203,32 @@ async def test_optional_profile_fields_need_not_be_unique_and_can_be_cleared(
     )
 
 
+@pytest.mark.parametrize(
+    "email", ["not-an-email", "two@@example.test", "no-domain-dot@example", "a b@example.test"]
+)
+async def test_member_email_must_be_an_email_address(
+    db_client: AsyncClient, structure: Structure, admin_csrf: str, email: str
+) -> None:
+    created = await _create(db_client, admin_csrf, structure, username="valid")
+    member_id = created.json()["member"]["id"]
+    body = {"full_name": "Sara Ahmed", "email": email}
+
+    rejected_create = await _create(db_client, admin_csrf, structure, username="bad", email=email)
+    rejected_update = await db_client.put(
+        f"{MEMBERS}/{member_id}", json=body, headers=csrf_headers(admin_csrf)
+    )
+
+    for response in (rejected_create, rejected_update):
+        assert response.status_code == 422
+        assert email not in response.text  # submitted values are never echoed
+    accepted = await db_client.put(
+        f"{MEMBERS}/{member_id}",
+        json={"full_name": "Sara Ahmed", "email": "  Sara.Ahmed+kora@uni.example.edu  "},
+        headers=csrf_headers(admin_csrf),
+    )
+    assert accepted.json()["email"] == "Sara.Ahmed+kora@uni.example.edu"
+
+
 async def test_several_team_leaders_may_share_a_team(
     db_client: AsyncClient, structure: Structure, admin_csrf: str
 ) -> None:

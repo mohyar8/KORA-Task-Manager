@@ -942,13 +942,43 @@ async def _own_comment(
 # --- History ------------------------------------------------------------------------------------
 
 
-async def history(db: AsyncSession, actor: TaskActor, task_id: uuid.UUID) -> list[TaskEvent]:
+@dataclass(frozen=True)
+class HistoryEntry:
+    kind: str
+    actor_account_id: uuid.UUID | None
+    data: dict[str, Any]
+    created_at: datetime
+
+
+# Event data keys that hold comment text. Events are append-only, so for a deleted comment the
+# text is removed when history is read, never by rewriting the stored event.
+COMMENT_CONTENT_KEYS = frozenset({"previous_body"})
+
+
+async def history(db: AsyncSession, actor: TaskActor, task_id: uuid.UUID) -> list[HistoryEntry]:
+    """Task-local events in order. Content of deleted comments (including earlier edited
+    versions) is removed; the event itself (kind, actor, time, comment id) stays."""
     await load_visible(db, actor, task_id)
-    return list(
-        await db.scalars(
-            select(TaskEvent).where(TaskEvent.task_id == task_id).order_by(TaskEvent.seq)
-        )
+    events = await db.scalars(
+        select(TaskEvent).where(TaskEvent.task_id == task_id).order_by(TaskEvent.seq)
     )
+    deleted = {
+        str(comment_id)
+        for comment_id in await db.scalars(
+            select(TaskComment.id).where(
+                TaskComment.task_id == task_id, TaskComment.deleted_at.is_not(None)
+            )
+        )
+    }
+    return [_history_entry(event, deleted) for event in events]
+
+
+def _history_entry(event: TaskEvent, deleted_comment_ids: set[str]) -> HistoryEntry:
+    data = dict(event.data)
+    if data.get("comment_id") in deleted_comment_ids and COMMENT_CONTENT_KEYS & data.keys():
+        data = {k: v for k, v in data.items() if k not in COMMENT_CONTENT_KEYS}
+        data["content_removed"] = True
+    return HistoryEntry(event.kind, event.actor_account_id, data, event.created_at)
 
 
 def record(

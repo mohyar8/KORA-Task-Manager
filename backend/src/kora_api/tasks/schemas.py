@@ -11,7 +11,7 @@ from pydantic import (
     model_validator,
 )
 
-from kora_api.tasks.constants import TaskPriority, TaskStatus
+from kora_api.tasks.constants import EventKind, SeriesStatus, TaskPriority, TaskStatus
 
 
 def _to_utc(value: datetime) -> datetime:
@@ -107,7 +107,7 @@ class CommentResponse(BaseModel):
 
 
 class TaskEventResponse(BaseModel):
-    kind: str
+    kind: EventKind
     actor_account_id: uuid.UUID | None
     data: dict[str, Any]
     created_at: datetime
@@ -166,6 +166,15 @@ class UpdateSeriesRequest(BaseModel):
         }
 
 
+class SubtaskTemplateResponse(BaseModel):
+    # Null only for templates stored before template keys existed.
+    key: uuid.UUID | None
+    title: str
+    description: str | None
+    priority: TaskPriority | None
+    assignee_member_ids: list[uuid.UUID]
+
+
 class SeriesResponse(BaseModel):
     id: uuid.UUID
     scope_unit_id: uuid.UUID
@@ -173,10 +182,10 @@ class SeriesResponse(BaseModel):
     description: str | None
     priority: TaskPriority | None
     assignee_member_ids: list[uuid.UUID]
-    subtask_templates: list[dict[str, Any]]
+    subtask_templates: list[SubtaskTemplateResponse]
     first_due_at: datetime
     ends_at: datetime
-    status: str
+    status: SeriesStatus
     created_by_account_id: uuid.UUID
     stopped_at: datetime | None
     occurrence_ids: list[uuid.UUID]

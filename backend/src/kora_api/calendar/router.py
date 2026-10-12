@@ -1,7 +1,7 @@
 import uuid
 from collections.abc import Awaitable
 from datetime import UTC, datetime, timedelta
-from typing import Annotated, Any, Literal, Self
+from typing import Annotated, Any, Literal, Self, cast
 
 from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import (
@@ -13,14 +13,16 @@ from pydantic import (
     StringConstraints,
     model_validator,
 )
+from pydantic.json_schema import SkipJsonSchema
 
 from kora_api.access.dependencies import CurrentAccess
 from kora_api.calendar import service
 from kora_api.calendar.models import CalendarEventState, CalendarEventType, CalendarInvitation
 from kora_api.core.database import DbSession
+from kora_api.core.errors import AUTHENTICATED, errors
 from kora_api.tasks.constants import TaskStatus
 
-router = APIRouter(prefix="/calendar", tags=["calendar"])
+router = APIRouter(prefix="/calendar", tags=["calendar"], responses=AUTHENTICATED)
 
 # A "my calendar" query may span at most this long (keeps responses bounded).
 MAX_RANGE = timedelta(days=366)
@@ -61,7 +63,8 @@ class CreateEventRequest(EventFieldsRequest):
 
 
 class UpdateEventRequest(BaseModel):
-    """Only the fields sent are changed. The scope cannot change: sending it is rejected."""
+    """Only the fields sent are changed. The scope cannot change: sending `scope_unit_id` is
+    rejected with 422."""
 
     type: CalendarEventType | None = None
     title: Title | None = None
@@ -71,7 +74,8 @@ class UpdateEventRequest(BaseModel):
     location_text: Location | None = None
     online_url: Url | None = None
     # Accepted only so it can be rejected explicitly (never silently ignored).
-    scope_unit_id: uuid.UUID | None = None
+    # Hidden from the schema: it is not an accepted field.
+    scope_unit_id: SkipJsonSchema[uuid.UUID | None] = None
 
     @model_validator(mode="after")
     def _required_not_null(self) -> Self:
@@ -130,8 +134,11 @@ class InvitationResponse(BaseModel):
     ended_by_account_id: uuid.UUID | None
 
 
+HistoryKind = Literal["created", "updated", "cancelled", "invitee_added", "invitee_removed"]
+
+
 class HistoryResponse(BaseModel):
-    kind: str
+    kind: HistoryKind
     actor_account_id: uuid.UUID | None
     data: dict[str, Any]
     created_at: datetime
@@ -198,9 +205,7 @@ async def _event(db: DbSession, actor: service.Actor, view: service.EventView) -
     )
 
 
-def _range(starts_at: datetime | None, ends_at: datetime | None) -> tuple[datetime, datetime]:
-    if starts_at is None or ends_at is None:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "from and to are required.")
+def _range(starts_at: datetime, ends_at: datetime) -> tuple[datetime, datetime]:
     if starts_at.tzinfo is None or ends_at.tzinfo is None:
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_CONTENT, "from and to must include a time zone offset."
@@ -213,12 +218,12 @@ def _range(starts_at: datetime | None, ends_at: datetime | None) -> tuple[dateti
     return starts_at.astimezone(UTC), ends_at.astimezone(UTC)
 
 
-@router.get("")
+@router.get("", responses=errors(422))
 async def my_calendar(
     access: CurrentAccess,
     db: DbSession,
-    starts_at: Annotated[datetime | None, Query(alias="from")] = None,
-    ends_at: Annotated[datetime | None, Query(alias="to")] = None,
+    starts_at: Annotated[datetime, Query(alias="from")],
+    ends_at: Annotated[datetime, Query(alias="to")],
 ) -> MyCalendarResponse:
     """Accessible events and meetings overlapping [from, to), plus due dates of open tasks the
     caller created or is assigned to."""
@@ -249,7 +254,7 @@ async def list_events(access: CurrentAccess, db: DbSession) -> list[EventRespons
     return [await _event(db, actor, v) for v in await service.list_events(db, actor)]
 
 
-@router.post("/events", status_code=status.HTTP_201_CREATED)
+@router.post("/events", status_code=status.HTTP_201_CREATED, responses=errors(422))
 async def create_event(
     body: CreateEventRequest, access: CurrentAccess, db: DbSession
 ) -> EventResponse:
@@ -275,13 +280,13 @@ async def create_event(
     return await _event(db, actor, view)
 
 
-@router.get("/events/{event_id}")
+@router.get("/events/{event_id}", responses=errors(404))
 async def get_event(event_id: uuid.UUID, access: CurrentAccess, db: DbSession) -> EventResponse:
     actor = await service.actor_for(db, access)
     return await _event(db, actor, await _call(service.get_event(db, actor, event_id)))
 
 
-@router.patch("/events/{event_id}")
+@router.patch("/events/{event_id}", responses=errors(404, 409, 422))
 async def update_event(
     event_id: uuid.UUID, body: UpdateEventRequest, access: CurrentAccess, db: DbSession
 ) -> EventResponse:
@@ -291,13 +296,13 @@ async def update_event(
     )
 
 
-@router.post("/events/{event_id}/cancel")
+@router.post("/events/{event_id}/cancel", responses=errors(404, 409))
 async def cancel_event(event_id: uuid.UUID, access: CurrentAccess, db: DbSession) -> EventResponse:
     actor = await service.actor_for(db, access)
     return await _event(db, actor, await _call(service.cancel_event(db, actor, event_id)))
 
 
-@router.post("/events/{event_id}/invitees")
+@router.post("/events/{event_id}/invitees", responses=errors(404, 409, 422))
 async def add_invitee(
     event_id: uuid.UUID, body: InviteeRequest, access: CurrentAccess, db: DbSession
 ) -> EventResponse:
@@ -307,7 +312,7 @@ async def add_invitee(
     )
 
 
-@router.post("/events/{event_id}/invitees/{member_id}/remove")
+@router.post("/events/{event_id}/invitees/{member_id}/remove", responses=errors(404, 409, 422))
 async def remove_invitee(
     event_id: uuid.UUID, member_id: uuid.UUID, access: CurrentAccess, db: DbSession
 ) -> EventResponse:
@@ -317,7 +322,7 @@ async def remove_invitee(
     )
 
 
-@router.get("/events/{event_id}/invitations")
+@router.get("/events/{event_id}/invitations", responses=errors(404))
 async def invitation_history(
     event_id: uuid.UUID, access: CurrentAccess, db: DbSession
 ) -> list[InvitationResponse]:
@@ -335,14 +340,17 @@ async def invitation_history(
     ]
 
 
-@router.get("/events/{event_id}/history")
+@router.get("/events/{event_id}/history", responses=errors(404))
 async def event_history(
     event_id: uuid.UUID, access: CurrentAccess, db: DbSession
 ) -> list[HistoryResponse]:
     actor = await service.actor_for(db, access)
     return [
         HistoryResponse(
-            kind=h.kind, actor_account_id=h.actor_account_id, data=h.data, created_at=h.created_at
+            kind=cast(HistoryKind, h.kind),
+            actor_account_id=h.actor_account_id,
+            data=h.data,
+            created_at=h.created_at,
         )
         for h in await _call(service.history(db, actor, event_id))
     ]

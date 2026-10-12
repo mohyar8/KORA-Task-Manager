@@ -6,7 +6,9 @@ from fastapi import APIRouter, HTTPException, status
 from kora_api.access import service as access_service
 from kora_api.access.dependencies import CurrentAccess, SystemAdmin
 from kora_api.core.database import DbSession
+from kora_api.core.errors import AUTHENTICATED, errors
 from kora_api.organization import members, units
+from kora_api.organization.constants import RoleKey
 from kora_api.organization.schemas import (
     ChangeTeamRequest,
     CreateMemberRequest,
@@ -21,8 +23,10 @@ from kora_api.organization.schemas import (
     UnitResponse,
 )
 
-units_router = APIRouter(prefix="/organization/units", tags=["organization"])
-members_router = APIRouter(prefix="/admin/members", tags=["admin"])
+units_router = APIRouter(
+    prefix="/organization/units", tags=["organization"], responses=AUTHENTICATED
+)
+members_router = APIRouter(prefix="/admin/members", tags=["admin"], responses=AUTHENTICATED)
 
 
 # --- Units: scoped by organization.manage --------------------------------------------------------
@@ -39,7 +43,7 @@ async def get_unit(unit_id: uuid.UUID, access: CurrentAccess, db: DbSession) -> 
     return await _unit_call(units.get_unit(db, access.snapshot, unit_id))
 
 
-@units_router.post("", status_code=status.HTTP_201_CREATED)
+@units_router.post("", status_code=status.HTTP_201_CREATED, responses=errors(422))
 async def create_unit(
     body: CreateUnitRequest, access: CurrentAccess, db: DbSession
 ) -> UnitResponse:
@@ -55,7 +59,7 @@ async def create_unit(
     )
 
 
-@units_router.post("/{unit_id}/move")
+@units_router.post("/{unit_id}/move", responses=errors(409, 422))
 async def move_team(
     unit_id: uuid.UUID, body: MoveTeamRequest, access: CurrentAccess, db: DbSession
 ) -> UnitResponse:
@@ -70,7 +74,7 @@ async def move_team(
     )
 
 
-@units_router.post("/{unit_id}/archive")
+@units_router.post("/{unit_id}/archive", responses=errors(409, 422))
 async def archive_unit(unit_id: uuid.UUID, access: CurrentAccess, db: DbSession) -> UnitResponse:
     return await _unit_call(units.archive_unit(db, access.snapshot, access.account.id, unit_id))
 
@@ -106,12 +110,12 @@ async def list_members(_: SystemAdmin, db: DbSession) -> list[MemberResponse]:
     return [_member(view) for view in await members.list_members(db)]
 
 
-@members_router.get("/{member_id}")
+@members_router.get("/{member_id}", responses=errors(404))
 async def get_member(member_id: uuid.UUID, _: SystemAdmin, db: DbSession) -> MemberResponse:
     return await _member_call(members.get_member(db, member_id))
 
 
-@members_router.post("", status_code=status.HTTP_201_CREATED)
+@members_router.post("", status_code=status.HTTP_201_CREATED, responses=errors(409, 422))
 async def create_member(
     body: CreateMemberRequest, admin: SystemAdmin, db: DbSession
 ) -> MemberCreatedResponse:
@@ -136,35 +140,35 @@ async def create_member(
     return MemberCreatedResponse(member=_member(view), temporary_password=temporary_password)
 
 
-@members_router.put("/{member_id}")
+@members_router.put("/{member_id}", responses=errors(404, 422))
 async def update_member(
     member_id: uuid.UUID, body: MemberProfileFields, admin: SystemAdmin, db: DbSession
 ) -> MemberResponse:
     return await _member_call(members.update_profile(db, admin.id, member_id, _profile(body)))
 
 
-@members_router.post("/{member_id}/team")
+@members_router.post("/{member_id}/team", responses=errors(404, 409, 422))
 async def change_team(
     member_id: uuid.UUID, body: ChangeTeamRequest, admin: SystemAdmin, db: DbSession
 ) -> MemberResponse:
     return await _member_call(members.change_team(db, admin.id, member_id, body.team_id))
 
 
-@members_router.post("/{member_id}/role")
+@members_router.post("/{member_id}/role", responses=errors(404, 409, 422))
 async def change_role(
     member_id: uuid.UUID, body: RoleFields, admin: SystemAdmin, db: DbSession
 ) -> MemberResponse:
     return await _member_call(members.change_role(db, admin.id, member_id, _role(body)))
 
 
-@members_router.post("/{member_id}/deactivate")
+@members_router.post("/{member_id}/deactivate", responses=errors(404, 409))
 async def deactivate_member(
     member_id: uuid.UUID, admin: SystemAdmin, db: DbSession
 ) -> MemberResponse:
     return await _member_call(members.deactivate_member(db, admin.id, member_id))
 
 
-@members_router.post("/{member_id}/reactivate")
+@members_router.post("/{member_id}/reactivate", responses=errors(404, 409, 422))
 async def reactivate_member(
     member_id: uuid.UUID, body: ReactivateMemberRequest, admin: SystemAdmin, db: DbSession
 ) -> MemberResponse:
@@ -173,7 +177,7 @@ async def reactivate_member(
     )
 
 
-@members_router.post("/{member_id}/reset-password")
+@members_router.post("/{member_id}/reset-password", responses=errors(404, 409))
 async def reset_member_password(
     member_id: uuid.UUID, admin: SystemAdmin, db: DbSession
 ) -> TemporaryPasswordResponse:
@@ -231,6 +235,6 @@ def _member(view: members.MemberView) -> MemberResponse:
         academic_year=member.academic_year,
         status=member.status,
         team_id=view.team_id,
-        role_key=view.role_key,
+        role_key=RoleKey(view.role_key) if view.role_key else None,
         role_unit_id=view.role_unit_id,
     )
