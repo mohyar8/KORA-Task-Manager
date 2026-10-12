@@ -138,9 +138,9 @@ async def create_member(
 
 @members_router.put("/{member_id}")
 async def update_member(
-    member_id: uuid.UUID, body: MemberProfileFields, _: SystemAdmin, db: DbSession
+    member_id: uuid.UUID, body: MemberProfileFields, admin: SystemAdmin, db: DbSession
 ) -> MemberResponse:
-    return await _member_call(members.update_profile(db, member_id, _profile(body)))
+    return await _member_call(members.update_profile(db, admin.id, member_id, _profile(body)))
 
 
 @members_router.post("/{member_id}/team")
@@ -175,11 +175,11 @@ async def reactivate_member(
 
 @members_router.post("/{member_id}/reset-password")
 async def reset_member_password(
-    member_id: uuid.UUID, _: SystemAdmin, db: DbSession
+    member_id: uuid.UUID, admin: SystemAdmin, db: DbSession
 ) -> TemporaryPasswordResponse:
     try:
         return TemporaryPasswordResponse(
-            temporary_password=await members.reset_password(db, member_id)
+            temporary_password=await members.reset_password(db, admin.id, member_id)
         )
     except members.MemberNotFoundError:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Member not found.") from None

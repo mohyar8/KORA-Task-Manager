@@ -42,10 +42,22 @@ def _imports(package: str) -> list[tuple[str, str]]:
         ("announcements", ("kora_api.tasks", "kora_api.calendar")),
         ("notifications", ("kora_api.calendar",)),
         ("organization", ("kora_api.calendar",)),
+        (
+            "audit",
+            (
+                "kora_api.access",
+                "kora_api.organization",
+                "kora_api.tasks",
+                "kora_api.announcements",
+                "kora_api.notifications",
+                "kora_api.calendar",
+            ),
+        ),
     ],
 )
 def test_dependency_direction(package: str, forbidden: tuple[str, ...]) -> None:
-    """access <- organization <- tasks/announcements -> notifications -> access."""
+    """access <- organization <- tasks/announcements -> notifications -> access; every domain
+    -> audit, which imports no domain."""
     offenders = [(f, m) for f, m in _imports(package) if m.startswith(forbidden)]
     assert offenders == []
 

@@ -11,9 +11,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kora_api.access import service as access_service
-from kora_api.access.models import UserAccount
+from kora_api.access.models import AccountStatus, UserAccount
+from kora_api.audit import service as audit
 from kora_api.core import clock
-from kora_api.organization import events
+from kora_api.organization import audit_actions, events
 from kora_api.organization.constants import (
     KORA_UNIT_ID,
     PMO_UNIT_ID,
@@ -120,17 +121,46 @@ async def create_member(
     await db.flush()
     _open_team_placement(db, member.id, team_id, actor_id)
     _open_role(db, member.id, role.role_key, role_unit_id, actor_id)
+    audit.record(
+        db,
+        audit_actions.MEMBER_PROVISIONED,
+        actor_account_id=actor_id,
+        resource_id=member.id,
+        scope_unit_id=team_id,
+        after={
+            "account_id": account.id,
+            "status": member.status,
+            "team_id": team_id,
+            "role_key": role.role_key,
+            "role_unit_id": role_unit_id,
+            "password_is_temporary": True,
+        },
+    )
     await db.commit()
     return await _view(db, member), temporary_password
 
 
 async def update_profile(
-    db: AsyncSession, member_id: uuid.UUID, profile: MemberProfile
+    db: AsyncSession, actor_id: uuid.UUID, member_id: uuid.UUID, profile: MemberProfile
 ) -> MemberView:
     member = await _lock_member(db, member_id)
-    for field, value in vars(profile).items():
-        setattr(member, field, value)
-    await db.commit()
+    changed = sorted(
+        field for field, value in vars(profile).items() if getattr(member, field) != value
+    )
+    if changed:
+        for field in changed:
+            setattr(member, field, getattr(profile, field))
+        placement = await _open_placement(db, member_id, lock=False)
+        # Profile values are never audited, only which fields changed.
+        audit.record(
+            db,
+            audit_actions.MEMBER_PROFILE_UPDATED,
+            actor_account_id=actor_id,
+            resource_id=member_id,
+            scope_unit_id=placement.team_id if placement else None,
+            after={"changed_fields": changed},
+        )
+        await db.commit()
     return await _view(db, member)
 
 
@@ -155,6 +185,23 @@ async def change_team(
     if role_follows_team:
         _open_role(db, member_id, RoleKey(assignment.role_key), team_id, actor_id)
     await events.membership_changed(db, frozenset({member_id}), actor_id)
+    audit.record(
+        db,
+        audit_actions.MEMBER_TEAM_CHANGED,
+        actor_account_id=actor_id,
+        resource_id=member_id,
+        scope_unit_id=team_id,
+        before={
+            "team_id": placement.team_id,
+            "role_key": assignment.role_key,
+            "role_unit_id": assignment.unit_id,
+        },
+        after={
+            "team_id": team_id,
+            "role_key": assignment.role_key,
+            "role_unit_id": team_id if role_follows_team else assignment.unit_id,
+        },
+    )
     await db.commit()
     return await _view(db, member)
 
@@ -174,6 +221,15 @@ async def change_role(
     await db.flush()
     _open_role(db, member_id, role.role_key, role_unit_id, actor_id)
     await events.membership_changed(db, frozenset({member_id}), actor_id)
+    audit.record(
+        db,
+        audit_actions.MEMBER_ROLE_CHANGED,
+        actor_account_id=actor_id,
+        resource_id=member_id,
+        scope_unit_id=placement.team_id,
+        before={"role_key": assignment.role_key, "role_unit_id": assignment.unit_id},
+        after={"role_key": role.role_key, "role_unit_id": role_unit_id},
+    )
     await db.commit()
     return await _view(db, member)
 
@@ -185,11 +241,38 @@ async def deactivate_member(
     member = await _lock_active_member(db, member_id)
     # Raises LastSystemAdminError (and changes nothing) for the final active System Admin.
     await access_service.deactivate_account(db, member.account_id)
-    for row in (await _open_placement(db, member_id), await _open_assignment(db, member_id)):
+    placement = await _open_placement(db, member_id)
+    assignment = await _open_assignment(db, member_id)
+    for row in (placement, assignment):
         if row is not None:
             _close(row, actor_id)
     member.status = MemberStatus.DEACTIVATED
     await events.membership_changed(db, frozenset({member_id}), actor_id)
+    team_id = placement.team_id if placement else None
+    audit.record(
+        db,
+        audit_actions.MEMBER_DEACTIVATED,
+        actor_account_id=actor_id,
+        resource_id=member_id,
+        scope_unit_id=team_id,
+        before={
+            "account_id": member.account_id,
+            "status": MemberStatus.ACTIVE,
+            "account_status": AccountStatus.ACTIVE,
+            "team_id": team_id,
+            "role_key": assignment.role_key if assignment else None,
+            "role_unit_id": assignment.unit_id if assignment else None,
+        },
+        after={
+            "account_id": member.account_id,
+            "status": member.status,
+            "account_status": AccountStatus.DEACTIVATED,
+            "team_id": None,
+            "role_key": None,
+            "role_unit_id": None,
+            "sessions_revoked": True,
+        },
+    )
     await db.commit()
     return await _view(db, member)
 
@@ -212,14 +295,37 @@ async def reactivate_member(
     member.status = MemberStatus.ACTIVE
     _open_team_placement(db, member_id, team_id, actor_id)
     _open_role(db, member_id, role.role_key, role_unit_id, actor_id)
+    audit.record(
+        db,
+        audit_actions.MEMBER_REACTIVATED,
+        actor_account_id=actor_id,
+        resource_id=member_id,
+        scope_unit_id=team_id,
+        before={
+            "account_id": member.account_id,
+            "status": MemberStatus.DEACTIVATED,
+            "account_status": AccountStatus.DEACTIVATED,
+        },
+        after={
+            "account_id": member.account_id,
+            "status": member.status,
+            "account_status": AccountStatus.ACTIVE,
+            "team_id": team_id,
+            "role_key": role.role_key,
+            "role_unit_id": role_unit_id,
+        },
+    )
     await db.commit()
     return await _view(db, member)
 
 
-async def reset_password(db: AsyncSession, member_id: uuid.UUID) -> str:
+async def reset_password(db: AsyncSession, actor_id: uuid.UUID, member_id: uuid.UUID) -> str:
     """Issue a new temporary password for an active Member's account; ends its sessions."""
     member = await _lock_active_member(db, member_id)
-    temporary_password = await access_service.reset_to_temporary_password(db, member.account_id)
+    placement = await _open_placement(db, member_id, lock=False)
+    temporary_password = await access_service.reset_to_temporary_password(
+        db, member.account_id, actor_id, placement.team_id if placement else None
+    )
     await db.commit()
     return temporary_password
 

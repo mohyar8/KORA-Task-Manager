@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 
 from kora_api.access.admin_router import access_router, admin_router
+from kora_api.access.audit_router import router as audit_router
 from kora_api.access.router import router as auth_router
 from kora_api.announcements.router import router as announcements_router
 from kora_api.api.v1 import health
@@ -16,6 +17,7 @@ router.include_router(access_router)
 router.include_router(units_router)
 router.include_router(members_router)
 router.include_router(admin_router)
+router.include_router(audit_router)
 router.include_router(tasks_router)
 router.include_router(series_router)
 router.include_router(announcements_router)

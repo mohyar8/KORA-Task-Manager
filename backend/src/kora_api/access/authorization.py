@@ -8,6 +8,7 @@ from sqlalchemy import ColumnElement, and_, exists, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import InstrumentedAttribute
 
+from kora_api.access import audit_actions
 from kora_api.access.evaluation import AccessSnapshot, Decision, OverrideRule
 from kora_api.access.models import (
     AccountDeactivation,
@@ -20,6 +21,7 @@ from kora_api.access.models import (
 from kora_api.access.org_facts import OrganizationFacts, UnitInfo
 from kora_api.access.permissions import OverrideEffect, Permission
 from kora_api.access.service import AccountNotFoundError
+from kora_api.audit import service as audit
 from kora_api.core import clock
 
 
@@ -190,12 +192,20 @@ async def add_role_default(
     if existing is not None:
         raise DuplicateRuleError
     row = RolePermissionDefault(
+        id=uuid.uuid4(),
         role_key=role_key,
         permission_key=permission,
         valid_from=clock.utcnow(),
         created_by_account_id=actor_id,
     )
     db.add(row)
+    audit.record(
+        db,
+        audit_actions.ROLE_DEFAULT_CREATED,
+        actor_account_id=actor_id,
+        resource_id=row.id,
+        after={"role_key": role_key, "permission": permission, "valid_from": row.valid_from},
+    )
     await db.commit()
     return row
 
@@ -210,6 +220,18 @@ async def end_role_default(
         raise RuleAlreadyEndedError
     row.valid_to = clock.utcnow()
     row.ended_by_account_id = actor_id
+    audit.record(
+        db,
+        audit_actions.ROLE_DEFAULT_ENDED,
+        actor_account_id=actor_id,
+        resource_id=row.id,
+        before={"role_key": row.role_key, "permission": row.permission_key, "valid_to": None},
+        after={
+            "role_key": row.role_key,
+            "permission": row.permission_key,
+            "valid_to": row.valid_to,
+        },
+    )
     await db.commit()
     return row
 
@@ -262,6 +284,7 @@ async def create_override(
     if duplicate is not None:
         raise DuplicateRuleError
     override = PermissionOverride(
+        id=uuid.uuid4(),
         account_id=account_id,
         permission_key=permission,
         unit_id=unit_id,
@@ -271,6 +294,15 @@ async def create_override(
         created_by_account_id=actor_id,
     )
     db.add(override)
+    # The free-text reason is not audited; it stays on the override row itself.
+    audit.record(
+        db,
+        audit_actions.OVERRIDE_CREATED,
+        actor_account_id=actor_id,
+        resource_id=override.id,
+        scope_unit_id=unit_id,
+        after=_override_metadata(override) | {"valid_from": now},
+    )
     await db.commit()
     return override
 
@@ -285,5 +317,23 @@ async def end_override(
         raise RuleAlreadyEndedError
     override.valid_to = clock.utcnow()
     override.ended_by_account_id = actor_id
+    audit.record(
+        db,
+        audit_actions.OVERRIDE_ENDED,
+        actor_account_id=actor_id,
+        resource_id=override.id,
+        scope_unit_id=override.unit_id,
+        before=_override_metadata(override) | {"valid_to": None},
+        after=_override_metadata(override) | {"valid_to": override.valid_to},
+    )
     await db.commit()
     return override
+
+
+def _override_metadata(override: PermissionOverride) -> dict[str, audit.Value]:
+    return {
+        "account_id": override.account_id,
+        "permission": override.permission_key,
+        "unit_id": override.unit_id,
+        "effect": override.effect,
+    }

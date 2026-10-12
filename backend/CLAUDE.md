@@ -62,7 +62,7 @@ All four checks (pytest, ruff check, ruff format --check, pyright) must pass bef
 ## Tasks (`kora_api.tasks`)
 
 - All task rules live in `tasks/service.py` (and `tasks/series.py`). Each operation loads a `TaskActor` (account, active Member, access snapshot) and checks permissions itself.
-- Never hard-delete tasks or comments. Status, scope (`task_scope_history`), assignments (`task_assignments`) and comments are tracked over time. Record task-local events with `service.record(...)`; there is no general audit log.
+- Never hard-delete tasks or comments. Status, scope (`task_scope_history`), assignments (`task_assignments`) and comments are tracked over time. Record task-local events with `service.record(...)`; central audit records are separate (see below).
 - Any operation that can make an assignee ineligible (scope or membership change) must call `remove_ineligible_assignees`, which records the reason.
 
 ## Announcements & notifications
@@ -76,6 +76,13 @@ All four checks (pytest, ruff check, ruff format --check, pyright) must pass bef
 - Event rules live in `calendar/service.py`; each operation checks access itself. The scope is fixed; cancel instead of deleting, and cancelled events are read-only.
 - Invitations are history rows: remove an invitee by ending the row, never by deleting it.
 - Task due dates in the calendar come from `tasks.service.due_tasks` (read-only). Never copy task data into calendar tables or change tasks from calendar routes.
+
+## Audit log (`kora_api.audit`)
+
+- Every successful change in the audited families (see `PROJECT_STATE.md`) records exactly one `audit.service.record(...)` per logical change, inside the same transaction, before commit. Series-wide and other multi-row operations record once, not per row.
+- Each domain declares its actions in its own `audit_actions.py` with an explicit metadata allowlist. Never store passwords, hashes, tokens, descriptions, comment/announcement bodies, event locations/URLs, override reasons, or Member profile values; store IDs, states, counts, timestamps, short titles, and names of changed fields. `audit` rejects keys that look unsafe.
+- `audit` imports no domain module (a test enforces this). Records are append-only (DB trigger); never add update/delete/export endpoints.
+- Reading is System Admin-only (`access/audit_router.py`, under `/admin`). It is the one exception to "no implicit operational access" and must never be used to authorize access to source resources.
 
 ## Domain rules that constrain design
 

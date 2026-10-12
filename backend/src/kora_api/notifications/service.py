@@ -8,7 +8,9 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kora_api.access.dependencies import AccessContext
+from kora_api.audit import service as audit
 from kora_api.core import clock
+from kora_api.notifications import audit_actions
 from kora_api.notifications.models import (
     Notification,
     NotificationCategory,
@@ -175,6 +177,7 @@ async def set_preferences(
     db: AsyncSession, account_id: uuid.UUID, changes: Mapping[NotificationCategory, bool]
 ) -> dict[NotificationCategory, bool]:
     now = clock.utcnow()
+    previous = await preferences(db, account_id)
     for category, enabled in changes.items():
         row = await db.scalar(
             select(NotificationPreference)
@@ -193,6 +196,16 @@ async def set_preferences(
         else:
             row.enabled = enabled
             row.updated_at = now
+    changed = sorted(c for c, enabled in changes.items() if previous[c] != enabled)
+    if changed:
+        audit.record(
+            db,
+            audit_actions.PREFERENCES_UPDATED,
+            actor_account_id=account_id,
+            resource_id=account_id,
+            before={category.value: previous[category] for category in changed},
+            after={category.value: changes[category] for category in changed},
+        )
     await db.commit()
     return await preferences(db, account_id)
 

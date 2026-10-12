@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import create_async_engine
 
 from kora_api.access import models as access_models
 from kora_api.announcements import models as announcements_models
+from kora_api.audit import models as audit_models
 from kora_api.calendar import models as calendar_models
 from kora_api.core.config import get_settings
 from kora_api.core.database import Base
@@ -23,6 +24,7 @@ MODEL_MODULES = (
     announcements_models,
     notifications_models,
     calendar_models,
+    audit_models,
 )
 
 config = context.config

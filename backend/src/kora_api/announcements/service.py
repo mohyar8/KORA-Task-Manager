@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from kora_api.access.dependencies import AccessContext
 from kora_api.access.evaluation import AccessDeniedError
 from kora_api.access.permissions import Permission
+from kora_api.announcements import audit_actions
 from kora_api.announcements.models import (
     Announcement,
     AnnouncementRead,
@@ -27,6 +28,7 @@ from kora_api.announcements.models import (
     AnnouncementState,
     AnnouncementVersion,
 )
+from kora_api.audit import service as audit
 from kora_api.core import clock
 from kora_api.notifications import service as notifications
 from kora_api.notifications.models import NotificationCategory
@@ -258,6 +260,14 @@ async def create_draft(
     db.add(announcement)
     await db.flush()
     db.add(_version(announcement, 1, title, body, access.account.id))
+    audit.record(
+        db,
+        audit_actions.DRAFT_CREATED,
+        actor_account_id=access.account.id,
+        resource_id=announcement.id,
+        scope_unit_id=scope_unit_id,
+        after={"state": announcement.state, "version": 1, "title": title},
+    )
     await db.commit()
     return await _view(db, access, announcement, Visibility.FULL, False)
 
@@ -298,6 +308,21 @@ async def edit(
                 access,
                 new_title,
             )
+        # The body is never audited, only whether it changed.
+        audit.record(
+            db,
+            audit_actions.EDITED,
+            actor_account_id=access.account.id,
+            resource_id=announcement.id,
+            scope_unit_id=announcement.scope_unit_id,
+            before={"version": current.version, "title": current.title},
+            after={
+                "state": announcement.state,
+                "version": announcement.current_version,
+                "title": new_title,
+                "body_changed": new_body != current.body,
+            },
+        )
         await db.commit()
     return await _view(db, access, announcement, Visibility.FULL, False)
 
@@ -349,6 +374,19 @@ async def publish(
     await _notify_recipients(
         db, announcement, NotificationCategory.ANNOUNCEMENT_NEW, "published", access, current.title
     )
+    audit.record(
+        db,
+        audit_actions.PUBLISHED,
+        actor_account_id=access.account.id,
+        resource_id=announcement.id,
+        scope_unit_id=announcement.scope_unit_id,
+        before={"state": AnnouncementState.DRAFT},
+        after={
+            "state": announcement.state,
+            "version": announcement.current_version,
+            "recipient_count": len(recipient_member_ids),
+        },
+    )
     await db.commit()
     return await _view(db, access, announcement, Visibility.FULL, False)
 
@@ -370,6 +408,15 @@ async def withdraw(
     # No summary: recipients can no longer see the content.
     await _notify_recipients(
         db, announcement, NotificationCategory.ANNOUNCEMENT_CHANGE, "withdrawn", access, None
+    )
+    audit.record(
+        db,
+        audit_actions.WITHDRAWN,
+        actor_account_id=access.account.id,
+        resource_id=announcement.id,
+        scope_unit_id=announcement.scope_unit_id,
+        before={"state": AnnouncementState.PUBLISHED},
+        after={"state": announcement.state},
     )
     await db.commit()
     return await _view(db, access, announcement, Visibility.FULL, False)

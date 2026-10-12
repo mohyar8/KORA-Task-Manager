@@ -25,10 +25,12 @@ from kora_api.access.dependencies import AccessContext
 from kora_api.access.evaluation import AccessDeniedError, AccessSnapshot, DecisionSource
 from kora_api.access.org_facts import UnitInfo
 from kora_api.access.permissions import Permission
+from kora_api.audit import service as audit
 from kora_api.core import clock
 from kora_api.notifications import service as notifications
 from kora_api.notifications.models import NotificationCategory as Category
 from kora_api.organization import queries as org
+from kora_api.tasks import audit_actions
 from kora_api.tasks.constants import (
     OPEN_STATUSES,
     AssignmentEndReason,
@@ -251,6 +253,7 @@ async def create_task(
         creator=actor,
         assignee_member_ids=assignee_member_ids,
     )
+    _audit_created(db, view, actor.account_id)
     await db.commit()
     return view
 
@@ -278,8 +281,28 @@ async def create_subtask(
         parent_id=parent.id,
     )
     record(db, parent.id, EventKind.SUBTASK_CREATED, actor.account_id, subtask_id=view.task.id)
+    _audit_created(db, view, actor.account_id)
     await db.commit()
     return view
+
+
+def _audit_created(db: AsyncSession, view: TaskView, actor_account_id: uuid.UUID) -> None:
+    task = view.task
+    audit.record(
+        db,
+        audit_actions.TASK_CREATED,
+        actor_account_id=actor_account_id,
+        resource_id=task.id,
+        scope_unit_id=task.scope_unit_id,
+        after={
+            "title": task.title,
+            "status": task.status,
+            "priority": task.priority,
+            "due_at": task.due_at,
+            "parent_id": task.parent_id,
+            "assignee_member_ids": sorted(view.assignee_member_ids, key=str),
+        },
+    )
 
 
 async def require_creator(db: AsyncSession, actor: TaskActor, scope_unit_id: uuid.UUID) -> None:
@@ -388,7 +411,20 @@ async def update_task(
     task = view.task
     if not can_administer(actor, task):
         raise _deny(MANAGE, task)
+    previous = {field: getattr(task, field) for field in EDITABLE}
     if await apply_changes(db, task, changes, actor.account_id):
+        changed = [field for field in EDITABLE if getattr(task, field) != previous[field]]
+        # The description is never audited, only that it changed.
+        shown = [field for field in changed if field != "description"]
+        audit.record(
+            db,
+            audit_actions.TASK_UPDATED,
+            actor_account_id=actor.account_id,
+            resource_id=task.id,
+            scope_unit_id=task.scope_unit_id,
+            before={field: previous[field] for field in shown},
+            after={"changed_fields": changed} | {field: getattr(task, field) for field in shown},
+        )
         await db.commit()
     return view
 
@@ -444,7 +480,23 @@ async def change_status(
         allowed = can_administer(actor, task)
     if not allowed:
         raise _deny(MANAGE, task)
+    previous = task.status
     await set_status(db, task, target, actor.account_id)
+    if target == TaskStatus.CANCELLED:
+        audit_action = audit_actions.TASK_CANCELLED
+    elif target == TaskStatus.NEW:
+        audit_action = audit_actions.TASK_REOPENED
+    else:
+        audit_action = audit_actions.TASK_STATUS_CHANGED
+    audit.record(
+        db,
+        audit_action,
+        actor_account_id=actor.account_id,
+        resource_id=task.id,
+        scope_unit_id=task.scope_unit_id,
+        before={"status": previous},
+        after={"status": target},
+    )
     await db.commit()
     return view
 
@@ -491,6 +543,14 @@ async def add_assignee(
     await require_eligible(db, [member_id], view.task.scope_unit_id, await org.current_units(db))
     await open_assignment(db, task_id, member_id, actor.account_id)
     record(db, task_id, EventKind.ASSIGNEE_ADDED, actor.account_id, member_id=member_id)
+    audit.record(
+        db,
+        audit_actions.TASK_ASSIGNEE_ADDED,
+        actor_account_id=actor.account_id,
+        resource_id=task_id,
+        scope_unit_id=view.task.scope_unit_id,
+        after={"member_id": member_id},
+    )
     await db.commit()
     return TaskView(view.task, view.assignee_member_ids | {member_id})
 
@@ -506,6 +566,7 @@ async def remove_assignee(
     if len(view.assignee_member_ids) == 1:
         raise InvalidTaskError("A task needs at least one assignee.")
     await end_assignment(db, task_id, member_id, AssignmentEndReason.REMOVED, actor.account_id)
+    _audit_assignee_removed(db, view.task, member_id, AssignmentEndReason.REMOVED, actor.account_id)
     await db.commit()
     return TaskView(view.task, view.assignee_member_ids - {member_id})
 
@@ -577,10 +638,12 @@ async def remove_ineligible_assignees(
     member_ids: Iterable[uuid.UUID] | None = None,
     *,
     notify: bool = True,
+    audit_removals: bool = False,
 ) -> set[uuid.UUID]:
     """End assignments of Members who are inactive or outside the task's current scope.
 
-    Returns the Members removed.
+    Returns the Members removed. `audit_removals` writes one audit record per removal; callers
+    whose own audit record already covers the removals (moves, series operations) leave it off.
     """
     assignees = (await assignees_of(db, [task.id]))[task.id]
     candidates = assignees if member_ids is None else assignees & set(member_ids)
@@ -597,7 +660,27 @@ async def remove_ineligible_assignees(
         )
         if await end_assignment(db, task.id, member_id, reason, actor_account_id, notify=notify):
             removed.add(member_id)
+            if audit_removals:
+                _audit_assignee_removed(db, task, member_id, reason, actor_account_id)
     return removed
+
+
+def _audit_assignee_removed(
+    db: AsyncSession,
+    task: Task,
+    member_id: uuid.UUID,
+    reason: AssignmentEndReason,
+    actor_account_id: uuid.UUID,
+) -> None:
+    audit.record(
+        db,
+        audit_actions.TASK_ASSIGNEE_REMOVED,
+        actor_account_id=actor_account_id,
+        resource_id=task.id,
+        scope_unit_id=task.scope_unit_id,
+        before={"member_id": member_id},
+        after={"member_id": None, "end_reason": reason},
+    )
 
 
 async def on_membership_changed(
@@ -622,19 +705,38 @@ async def on_membership_changed(
         return
     units = await org.current_units(db)
     series_removals: dict[uuid.UUID, set[uuid.UUID]] = {}
+    series_occurrences: dict[uuid.UUID, int] = {}
     for task in await db.scalars(select(Task).where(Task.id.in_(task_ids)).with_for_update()):
         if task.series_id is None:
-            await remove_ineligible_assignees(db, task, actor_account_id, units, member_ids)
+            await remove_ineligible_assignees(
+                db, task, actor_account_id, units, member_ids, audit_removals=True
+            )
             continue
-        # Series occurrences: one consolidated notification per Member, not one per occurrence.
+        # Series tasks: one consolidated notification per Member and one audit record per
+        # series, not one per occurrence.
         removed = await remove_ineligible_assignees(
             db, task, actor_account_id, units, member_ids, notify=False
         )
         series_removals.setdefault(task.series_id, set()).update(removed)
+        if removed:
+            series_occurrences[task.series_id] = series_occurrences.get(task.series_id, 0) + 1
     for series_id, removed in series_removals.items():
         await notify_series_assignment(
             db, series_id, removed, "series_unassigned", actor_account_id
         )
+        if removed:
+            series = await db.get_one(TaskSeries, series_id)
+            audit.record(
+                db,
+                audit_actions.SERIES_ASSIGNEES_REMOVED,
+                actor_account_id=actor_account_id,
+                resource_id=series_id,
+                scope_unit_id=series.scope_unit_id,
+                after={
+                    "member_ids": sorted(removed, key=str),
+                    "occurrence_count": series_occurrences[series_id],
+                },
+            )
 
 
 # --- Moving -------------------------------------------------------------------------------------
@@ -665,9 +767,24 @@ async def move_task(
     subtasks = list(
         await db.scalars(select(Task).where(Task.parent_id == task.id).with_for_update())
     )
+    source_id = task.scope_unit_id
+    removed: set[uuid.UUID] = set()
     for item in (task, *subtasks):
         await rescope(db, item, destination_id, actor.account_id)
-        await remove_ineligible_assignees(db, item, actor.account_id, units)
+        removed |= await remove_ineligible_assignees(db, item, actor.account_id, units)
+    audit.record(
+        db,
+        audit_actions.TASK_MOVED,
+        actor_account_id=actor.account_id,
+        resource_id=task.id,
+        scope_unit_id=destination_id,
+        before={"scope_unit_id": source_id},
+        after={
+            "scope_unit_id": destination_id,
+            "subtask_count": len(subtasks),
+            "removed_assignee_member_ids": sorted(removed, key=str),
+        },
+    )
     await db.commit()
     return await _load(db, task.id)
 
@@ -738,6 +855,7 @@ async def add_comment(
     await db.flush()
     record(db, task_id, EventKind.COMMENT_ADDED, actor.account_id, comment_id=comment.id)
     await _notify_watchers(db, view.task, Category.TASK_COMMENT, "commented", actor.account_id)
+    _audit_comment(db, audit_actions.COMMENT_CREATED, comment, view.task, {"task_id": task_id})
     await db.commit()
     return comment
 
@@ -745,7 +863,7 @@ async def add_comment(
 async def edit_comment(
     db: AsyncSession, actor: TaskActor, task_id: uuid.UUID, comment_id: uuid.UUID, body: str
 ) -> TaskComment:
-    comment = await _own_comment(db, actor, task_id, comment_id)
+    task, comment = await _own_comment(db, actor, task_id, comment_id)
     if comment.body != body:
         record(
             db,
@@ -757,6 +875,13 @@ async def edit_comment(
         )
         comment.body = body
         comment.edited_at = clock.utcnow()
+        _audit_comment(
+            db,
+            audit_actions.COMMENT_EDITED,
+            comment,
+            task,
+            {"task_id": task_id, "edited_at": comment.edited_at},
+        )
         await db.commit()
     return comment
 
@@ -765,16 +890,44 @@ async def delete_comment(
     db: AsyncSession, actor: TaskActor, task_id: uuid.UUID, comment_id: uuid.UUID
 ) -> TaskComment:
     """Soft delete: the comment stays listed as deleted and the history keeps a trace."""
-    comment = await _own_comment(db, actor, task_id, comment_id)
+    task, comment = await _own_comment(db, actor, task_id, comment_id)
     comment.deleted_at = clock.utcnow()
     record(db, task_id, EventKind.COMMENT_DELETED, actor.account_id, comment_id=comment.id)
+    _audit_comment(
+        db,
+        audit_actions.COMMENT_DELETED,
+        comment,
+        task,
+        {"task_id": task_id, "deleted_at": comment.deleted_at},
+        before={"task_id": task_id, "deleted_at": None},
+    )
     await db.commit()
     return comment
 
 
+def _audit_comment(
+    db: AsyncSession,
+    audit_action: audit.AuditAction,
+    comment: TaskComment,
+    task: Task,
+    after: audit.Metadata,
+    before: audit.Metadata | None = None,
+) -> None:
+    """Comment bodies are never audited."""
+    audit.record(
+        db,
+        audit_action,
+        actor_account_id=comment.author_account_id,
+        resource_id=comment.id,
+        scope_unit_id=task.scope_unit_id,
+        before=before,
+        after=after,
+    )
+
+
 async def _own_comment(
     db: AsyncSession, actor: TaskActor, task_id: uuid.UUID, comment_id: uuid.UUID
-) -> TaskComment:
+) -> tuple[Task, TaskComment]:
     view = await load_visible(db, actor, task_id)
     comment = await db.get(TaskComment, comment_id, with_for_update=True)
     if comment is None or comment.task_id != task_id:
@@ -783,7 +936,7 @@ async def _own_comment(
         raise _deny(VIEW, view.task)
     if comment.deleted_at is not None:
         raise TaskConflictError("The comment has been deleted.")
-    return comment
+    return view.task, comment
 
 
 # --- History ------------------------------------------------------------------------------------

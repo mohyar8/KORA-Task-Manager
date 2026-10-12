@@ -1,10 +1,10 @@
 # KORA Internal Operations Platform — Backend Project State
 
-_Last updated: 2026-10-08 (Milestone 5C)_
+_Last updated: 2026-10-12 (Milestone 6A)_
 
 ## Current phase
 
-Tasks, communication and calendar foundation. Authentication, the organization structure, Members, roles, scope-aware authorization, scoped tasks, announcements, in-app notifications, and calendar events and meetings are implemented. There is no chat, file, reminder, email/push or general audit module.
+Governance foundation. Authentication, the organization structure, Members, roles, scope-aware authorization, scoped tasks, announcements, in-app notifications, calendar events and meetings, and a central append-only audit log are implemented. There is no chat, file, reminder or email/push module.
 
 ## Repository baseline
 
@@ -23,6 +23,7 @@ Tasks, communication and calendar foundation. Authentication, the organization s
   - `e8a4b2d6c1f3`, seeds the announcement permissions and their role defaults.
   - `9ddea54afcb3`, calendar schema plus the `calendar_event` notification category. The downgrade rebuilds the enum.
   - `a3c7e5f9d2b4`, seeds the calendar permissions and their role defaults.
+  - `6b1e9c4d2a7f`, `audit_records` plus a trigger that rejects UPDATE, DELETE and TRUNCATE. No backfill.
 - `kora_api.access`:
   - Endpoints under `/api/v1/auth`: sign-in, sign-out, sign-out-all, me, change-password.
   - Argon2id hashing, server-side sessions, CSRF protection, a per-username login throttle, and the temporary-password gate (`CurrentAccount`).
@@ -55,6 +56,10 @@ Tasks, communication and calendar foundation. Authentication, the organization s
   - Tables: `calendar_events`, `calendar_invitations` and `calendar_event_history`.
   - `/api/v1/calendar` is the merged "my calendar" for a time range (`from`/`to`, with a time zone, at most 366 days).
   - `/api/v1/calendar/events`: list, create, get, edit, cancel, add or remove invitees, invitation history and event history.
+- `kora_api.audit`:
+  - Table `audit_records` (append-only, enforced by a DB trigger): UTC time, action key, optional actor account, resource type and id, optional scope unit, `before`/`after` metadata, and an insertion `sequence`.
+  - `audit.service.record(...)` adds a record to the caller's transaction (no flush or commit). Each domain declares its actions in its own `audit_actions.py`.
+  - Reading lives in `access/audit_router.py`: `GET /api/v1/admin/audit-records` (paged, filtered) and `GET /api/v1/admin/audit-records/{id}`. System Admin only.
 
 ## Confirmed technical decisions
 
@@ -137,7 +142,7 @@ Tasks, communication and calendar foundation. Authentication, the organization s
     - Plain text, no attachments. The creator, assignees and scoped managers may comment.
     - Authors can edit their own comments; the earlier text is kept in the history.
     - Deletion is soft: the comment stays listed with no body and a `deleted_at` time.
-  - History: task-local `task_events` (lifecycle, assignment, scope, comment). There is no general audit log.
+  - History: task-local `task_events` (lifecycle, assignment, scope, comment), separate from the central audit log.
   - Weekly series:
     - Requires a first due time and an end time.
     - Capped at 104 occurrences. This is an intentional anti-abuse limit: occurrences are generated up front, so an unbounded end time could create an unbounded number of tasks.
@@ -196,7 +201,21 @@ Tasks, communication and calendar foundation. Authentication, the organization s
     - editing: one `updated` to current invitees, not the actor;
     - cancelling: one `cancelled` to current invitees, not the actor;
     - removing an invitee: silent.
-- Dependency direction: `access` ← `organization` ← `tasks` / `announcements` / `calendar` → `notifications` → `access`. `calendar` reads `tasks` (due dates) only. `notifications` imports no source module.
+- Audit log:
+  - One record per successful logical change, written in the same transaction as the change, so both commit or roll back together. Rejected or failed operations write nothing. Multi-row operations (series create/edit/move/stop, Member deactivation) write one record, not one per row.
+  - Audited actions:
+    - access: `account.bootstrapped`, `account.password_changed`, `account.password_reset`, `account.locked_out` (existing accounts only; unknown usernames are never logged), `system_admin.granted`/`revoked`, `role_default.created`/`ended`, `permission_override.created`/`ended`;
+    - organization: `org_unit.created`/`moved`/`archived`, `member.provisioned`, `member.profile_updated` (changed field names only), `member.team_changed`, `member.role_changed`, `member.deactivated`/`reactivated` (cover the account and sessions too);
+    - tasks: `task.created`/`updated`/`status_changed`/`cancelled`/`reopened`/`moved`, `task.assignee_added`/`assignee_removed` (also automatic removals after a membership change), `task_comment.created`/`edited`/`deleted`, `task_series.created`/`updated`/`moved`/`stopped`/`assignees_removed`;
+    - announcements: `announcement.draft_created`/`published`/`edited`/`withdrawn`;
+    - notifications: `notification_preferences.updated` only (reads and deletes are not audited);
+    - calendar: `calendar_event.created`/`updated`/`cancelled`/`invitee_added`/`invitee_removed`.
+  - Not audited: reads and listings, sign-in success, normal sign-out and sign-out-all, notification read/delete, opening an announcement.
+  - Privacy: metadata keys are allowlisted per action, and keys that look like secrets, content or contact data are refused at definition time. Only IDs, states, counts, timestamps, titles (cut to 120 characters) and names of changed fields are stored. Never stored: passwords, hashes, tokens, credentials, task/series/event descriptions, comment and announcement bodies, event locations and URLs, override reasons, Member profile values.
+  - Reading: System Admin only (an explicit audit-only exception to "no implicit operational access"); it returns only stored metadata and grants nothing on the source resources. Newest first by `sequence`, `limit` 1–200 (default 50), `cursor` = the previous page's `next_cursor`; filters for a time range (`occurred_from` inclusive, `occurred_to` exclusive, with offsets), action, actor, resource type/id and scope. No edit, delete, export or bulk API.
+  - No request/correlation id exists in current conventions, so none is stored. No IP or user-agent tracking.
+  - History boundary: the log starts when migration `6b1e9c4d2a7f` is applied. Earlier changes are not backfilled; domain history tables (`task_events`, placements, etc.) remain the record for that period.
+- Dependency direction: `access` ← `organization` ← `tasks` / `announcements` / `calendar` → `notifications` → `access`. `calendar` reads `tasks` (due dates) only. `notifications` imports no source module. Every domain may import `audit`; `audit` imports no domain.
 
 ## Functional scope
 
@@ -222,7 +241,7 @@ Five internal domains:
 - Further permissions and their defaults for later domains
 - Pagination and filtering conventions for task lists, as volume grows
 - Provisioning of non-Member accounts other than through bootstrap
-- Audit/history storage strategy
+- Audit retention, export and correlation ids (the central log itself is decided: M6A)
 - Background jobs and scheduling for reminders; notification delivery channels
 - API conventions (error format, pagination, IDs, timestamps/timezones)
 - Archival column conventions for future domain tables
@@ -242,6 +261,7 @@ Five internal domains:
 | M5A: Task-management foundation (tasks, subtasks, comments, history, weekly series) | Done |
 | M5B: Announcements and in-app notifications | Done |
 | M5C: Calendar events and meetings, merged calendar with task due dates | Done |
+| M6A: Central append-only audit log with System Admin read API | Done |
 
 ## Next intended work
 

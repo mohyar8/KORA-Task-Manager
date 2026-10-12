@@ -11,8 +11,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from kora_api.access.evaluation import AccessSnapshot
 from kora_api.access.permissions import Permission
+from kora_api.audit import service as audit
 from kora_api.core import clock
-from kora_api.organization import events
+from kora_api.organization import audit_actions, events
 from kora_api.organization.constants import KORA_UNIT_ID, PMO_UNIT_ID, UnitKind, UnitStatus
 from kora_api.organization.models import (
     MemberTeamPlacement,
@@ -109,6 +110,14 @@ async def create_unit(
             unit_id=unit.id, parent_id=parent.id, valid_from=now, created_by_account_id=actor_id
         )
     )
+    audit.record(
+        db,
+        audit_actions.UNIT_CREATED,
+        actor_account_id=actor_id,
+        resource_id=unit.id,
+        scope_unit_id=unit.id,
+        after={"kind": kind, "name": name, "parent_id": parent.id, "status": unit.status},
+    )
     await db.commit()
     return UnitView(unit, parent.id)
 
@@ -168,6 +177,15 @@ async def move_team(
         )
     )
     await events.membership_changed(db, frozenset(placed), actor_id)
+    audit.record(
+        db,
+        audit_actions.UNIT_MOVED,
+        actor_account_id=actor_id,
+        resource_id=team_id,
+        scope_unit_id=team_id,
+        before={"parent_id": current.parent_id},
+        after={"parent_id": administration_id},
+    )
     await db.commit()
     return UnitView(team, administration_id)
 
@@ -210,5 +228,14 @@ async def archive_unit(
     unit.status = UnitStatus.ARCHIVED
     unit.archived_at = clock.utcnow()
     unit.archived_by_account_id = actor_id
+    audit.record(
+        db,
+        audit_actions.UNIT_ARCHIVED,
+        actor_account_id=actor_id,
+        resource_id=unit_id,
+        scope_unit_id=unit_id,
+        before={"status": UnitStatus.ACTIVE},
+        after={"status": unit.status},
+    )
     await db.commit()
     return UnitView(unit, await _current_parent_id(db, unit_id))

@@ -22,6 +22,8 @@ from kora_api.access.dependencies import AccessContext
 from kora_api.access.evaluation import AccessDeniedError
 from kora_api.access.org_facts import UnitInfo
 from kora_api.access.permissions import Permission
+from kora_api.audit import service as audit
+from kora_api.calendar import audit_actions
 from kora_api.calendar.models import (
     CalendarEvent,
     CalendarEventHistory,
@@ -39,6 +41,8 @@ CREATE = Permission.CALENDAR_CREATE
 MANAGE = Permission.CALENDAR_MANAGE
 NOTIFICATION_SOURCE = "calendar_event"
 EDITABLE = ("type", "title", "description", "starts_at", "ends_at", "location_text", "online_url")
+# Edited fields whose values are audited; the others are recorded only as changed.
+AUDITED_FIELDS = ("type", "title", "starts_at", "ends_at")
 
 
 class EventNotFoundError(Exception):
@@ -291,6 +295,21 @@ async def create_event(
     for member_id in invitee_member_ids:
         _record(db, event.id, "invitee_added", actor.account_id, member_id=member_id)
     await _notify(db, event, set(invitee_member_ids), "invited", actor.account_id)
+    audit.record(
+        db,
+        audit_actions.EVENT_CREATED,
+        actor_account_id=actor.account_id,
+        resource_id=event.id,
+        scope_unit_id=scope_unit_id,
+        after={
+            "type": event.type,
+            "title": event.title,
+            "starts_at": event.starts_at,
+            "ends_at": event.ends_at,
+            "state": event.state,
+            "invitee_member_ids": sorted(invitee_member_ids, key=str),
+        },
+    )
     await db.commit()
     return EventView(event, frozenset(invitee_member_ids))
 
@@ -310,11 +329,22 @@ async def update_event(
         if merged[field] != getattr(event, field)
     }
     if diff:
+        previous = {field: getattr(event, field) for field in diff if field in AUDITED_FIELDS}
         for field in diff:
             setattr(event, field, merged[field])
         event.updated_at = clock.utcnow()
         _record(db, event.id, "updated", actor.account_id, changes=diff)
         await _notify(db, event, set(view.invitee_member_ids), "updated", actor.account_id)
+        audit.record(
+            db,
+            audit_actions.EVENT_UPDATED,
+            actor_account_id=actor.account_id,
+            resource_id=event.id,
+            scope_unit_id=event.scope_unit_id,
+            before=previous,
+            after={"changed_fields": list(diff)}
+            | {field: getattr(event, field) for field in previous},
+        )
         await db.commit()
     return view
 
@@ -330,6 +360,15 @@ async def cancel_event(db: AsyncSession, actor: Actor, event_id: uuid.UUID) -> E
     event.updated_at = now
     _record(db, event.id, "cancelled", actor.account_id)
     await _notify(db, event, set(view.invitee_member_ids), "cancelled", actor.account_id)
+    audit.record(
+        db,
+        audit_actions.EVENT_CANCELLED,
+        actor_account_id=actor.account_id,
+        resource_id=event.id,
+        scope_unit_id=event.scope_unit_id,
+        before={"state": CalendarEventState.SCHEDULED},
+        after={"state": event.state},
+    )
     await db.commit()
     return view
 
@@ -344,6 +383,14 @@ async def add_invitee(
     _invite(db, event_id, member_id, actor.account_id)
     _record(db, event_id, "invitee_added", actor.account_id, member_id=member_id)
     await _notify(db, view.event, {member_id}, "invited", actor.account_id)
+    audit.record(
+        db,
+        audit_actions.INVITEE_ADDED,
+        actor_account_id=actor.account_id,
+        resource_id=event_id,
+        scope_unit_id=view.event.scope_unit_id,
+        after={"member_id": member_id},
+    )
     await db.commit()
     return EventView(view.event, view.invitee_member_ids | {member_id})
 
@@ -370,6 +417,15 @@ async def remove_invitee(
     invitation.valid_to = clock.utcnow()
     invitation.ended_by_account_id = actor.account_id
     _record(db, event_id, "invitee_removed", actor.account_id, member_id=member_id)
+    audit.record(
+        db,
+        audit_actions.INVITEE_REMOVED,
+        actor_account_id=actor.account_id,
+        resource_id=event_id,
+        scope_unit_id=view.event.scope_unit_id,
+        before={"member_id": member_id},
+        after={"member_id": None},
+    )
     await db.commit()
     return EventView(view.event, view.invitee_member_ids - {member_id})
 

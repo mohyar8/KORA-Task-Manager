@@ -9,7 +9,7 @@ from sqlalchemy import case, exists, select, text, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kora_api.access import security
+from kora_api.access import audit_actions, security
 from kora_api.access.models import (
     AccountDeactivation,
     AccountStatus,
@@ -28,6 +28,7 @@ from kora_api.access.policy import (
     SESSION_TOUCH_INTERVAL,
     TEMPORARY_PASSWORD_LIFETIME,
 )
+from kora_api.audit import service as audit
 from kora_api.core import clock
 
 
@@ -111,7 +112,17 @@ async def sign_in(db: AsyncSession, raw_username: str, password: str) -> IssuedS
         )
 
     if account is None or not valid:
-        await _record_failed_sign_in(db, username, now)
+        failure_count, locked_until = await _record_failed_sign_in(db, username, now)
+        if account is not None and locked_until is not None:
+            # Only an existing account can be locked out; an unknown username (possibly a
+            # mistyped password) is never written to the audit log.
+            audit.record(
+                db,
+                audit_actions.ACCOUNT_LOCKED_OUT,
+                actor_account_id=None,
+                resource_id=account.id,
+                after={"failure_count": failure_count, "locked_until": locked_until},
+            )
         await db.commit()
         raise AuthenticationFailedError
 
@@ -124,8 +135,13 @@ async def sign_in(db: AsyncSession, raw_username: str, password: str) -> IssuedS
     return issued
 
 
-async def _record_failed_sign_in(db: AsyncSession, username: str, now: datetime) -> None:
-    """Atomically count a failure in the current window and lock once the limit is reached."""
+async def _record_failed_sign_in(
+    db: AsyncSession, username: str, now: datetime
+) -> tuple[int, datetime | None]:
+    """Atomically count a failure in the current window and lock once the limit is reached.
+
+    Returns the failure count and, when this failure locked the username, the lock's end.
+    """
     table = LoginThrottle.__table__
     window_expired = table.c.window_started_at <= now - LOGIN_FAILURE_WINDOW
     new_count = case((window_expired, 1), else_=table.c.failure_count + 1)
@@ -142,8 +158,10 @@ async def _record_failed_sign_in(db: AsyncSession, username: str, now: datetime)
                 ),
             },
         )
+        .returning(LoginThrottle.failure_count, LoginThrottle.locked_until)
     )
-    await db.execute(stmt)
+    failure_count, locked_until = (await db.execute(stmt)).one()
+    return failure_count, locked_until
 
 
 def _temporary_password_expired(account: UserAccount, now: datetime) -> bool:
@@ -234,11 +252,20 @@ async def change_password(
     if not security.is_valid_password(new_password):
         raise InvalidPasswordError
 
+    was_temporary = account.password_is_temporary
     account.password_hash = security.hash_password(new_password)
     account.password_is_temporary = False
     account.temporary_password_expires_at = None
     account.password_changed_at = now
     await _revoke_all_sessions(db, account.id, SessionRevokeReason.PASSWORD_CHANGE)
+    audit.record(
+        db,
+        audit_actions.ACCOUNT_PASSWORD_CHANGED,
+        actor_account_id=account.id,
+        resource_id=account.id,
+        before={"password_is_temporary": was_temporary},
+        after={"password_is_temporary": False, "password_changed_at": now},
+    )
     issued = _issue_session(db, account.id, now)
     await db.commit()
     return issued
@@ -273,6 +300,13 @@ async def bootstrap_first_system_admin(
             account_id=account.id, granted_at=clock.utcnow(), granted_by_account_id=None
         )
     )
+    audit.record(
+        db,
+        audit_actions.ACCOUNT_BOOTSTRAPPED,
+        actor_account_id=None,
+        resource_id=account.id,
+        after={"status": account.status, "password_is_temporary": True, "system_admin": True},
+    )
     await db.commit()
     return account, temporary_password
 
@@ -306,16 +340,35 @@ async def create_account_with_temporary_password(
     return account, temporary_password
 
 
-async def reset_to_temporary_password(db: AsyncSession, account_id: uuid.UUID) -> str:
+async def reset_to_temporary_password(
+    db: AsyncSession,
+    account_id: uuid.UUID,
+    actor_account_id: uuid.UUID,
+    scope_unit_id: uuid.UUID | None = None,
+) -> str:
     """Replace the password with a new temporary one and end all sessions. Does not commit."""
     account = await db.get_one(UserAccount, account_id, with_for_update=True)
     now = clock.utcnow()
+    was_temporary = account.password_is_temporary
     temporary_password = security.generate_temporary_password()
     account.password_hash = security.hash_password(temporary_password)
     account.password_is_temporary = True
     account.temporary_password_expires_at = now + TEMPORARY_PASSWORD_LIFETIME
     account.password_changed_at = now
     await _revoke_all_sessions(db, account_id, SessionRevokeReason.PASSWORD_CHANGE)
+    audit.record(
+        db,
+        audit_actions.ACCOUNT_PASSWORD_RESET,
+        actor_account_id=actor_account_id,
+        resource_id=account_id,
+        scope_unit_id=scope_unit_id,
+        before={"password_is_temporary": was_temporary},
+        after={
+            "password_is_temporary": True,
+            "temporary_password_expires_at": account.temporary_password_expires_at,
+            "sessions_revoked": True,
+        },
+    )
     return temporary_password
 
 
@@ -361,6 +414,14 @@ async def grant_system_admin(
         granted_by_account_id=granted_by_account_id,
     )
     db.add(grant)
+    audit.record(
+        db,
+        audit_actions.SYSTEM_ADMIN_GRANTED,
+        actor_account_id=granted_by_account_id,
+        resource_id=account_id,
+        before={"system_admin": False},
+        after={"system_admin": True},
+    )
     await db.commit()
     return grant
 
@@ -386,6 +447,14 @@ async def revoke_system_admin(
         update(SystemAdminGrant)
         .where(SystemAdminGrant.account_id == account_id, SystemAdminGrant.revoked_at.is_(None))
         .values(revoked_at=clock.utcnow(), revoked_by_account_id=revoked_by_account_id)
+    )
+    audit.record(
+        db,
+        audit_actions.SYSTEM_ADMIN_REVOKED,
+        actor_account_id=revoked_by_account_id,
+        resource_id=account_id,
+        before={"system_admin": True},
+        after={"system_admin": False},
     )
     await db.commit()
 

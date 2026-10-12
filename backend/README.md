@@ -61,4 +61,8 @@ Announcements live at `/api/v1/announcements`; leaders and managers get `announc
 
 Events and meetings live at `/api/v1/calendar/events`. `GET /api/v1/calendar?from=...&to=...` (times with an offset, at most 366 days) returns your events together with the due dates of open tasks you created or are assigned to.
 
+## Audit log
+
+Successful state changes are recorded in an append-only audit log (`audit_records`; a database trigger rejects updates and deletes). Only System Admins can read it, at `GET /api/v1/admin/audit-records` (newest first; `limit`/`cursor` paging; filters `occurred_from`/`occurred_to` with offsets, `action`, `actor_account_id`, `resource_type`, `resource_id`, `scope_unit_id`) and `GET /api/v1/admin/audit-records/{id}`. Records hold only short, allowlisted metadata, and reading them grants no access to the tasks, announcements, events or Members they describe. The log starts at migration `6b1e9c4d2a7f`; earlier changes are not backfilled.
+
 API docs (`/docs`, `/redoc`, `/openapi.json`) are on only in the `local` and `test` environments, and always off in `staging` and `production`.

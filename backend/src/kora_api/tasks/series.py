@@ -14,9 +14,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from kora_api.access.dependencies import AccessContext
 from kora_api.access.evaluation import AccessDeniedError
 from kora_api.access.org_facts import UnitInfo
+from kora_api.audit import service as audit
 from kora_api.core import clock
 from kora_api.organization import queries as org
-from kora_api.tasks import service
+from kora_api.tasks import audit_actions, service
 from kora_api.tasks.constants import (
     MAX_SERIES_OCCURRENCES,
     RECURRENCE_INTERVAL,
@@ -165,6 +166,24 @@ async def create_series(
     await service.notify_series_assignment(
         db, series.id, assigned, "series_assigned", actor.account_id
     )
+    # One record for the whole series, not one per generated occurrence.
+    audit.record(
+        db,
+        audit_actions.SERIES_CREATED,
+        actor_account_id=actor.account_id,
+        resource_id=series.id,
+        scope_unit_id=scope_unit_id,
+        after={
+            "title": series.title,
+            "status": series.status,
+            "priority": series.priority,
+            "first_due_at": series.first_due_at,
+            "ends_at": series.ends_at,
+            "occurrence_count": len(occurrence_ids),
+            "assignee_member_ids": sorted(assignee_member_ids, key=str),
+            "subtask_template_count": len(subtasks),
+        },
+    )
     await db.commit()
     return SeriesView(series, occurrence_ids)
 
@@ -191,6 +210,7 @@ async def update_series(
     occurrences get matching subtasks created, updated or (soft-)removed by cancelling them.
     """
     series = await _load_administrable(db, actor, series_id)
+    previous = _series_state(series)
     units = await org.current_units(db)
     if assignee_member_ids is not None:
         await service.require_eligible(db, assignee_member_ids, series.scope_unit_id, units)
@@ -211,7 +231,8 @@ async def update_series(
 
     wanted = set(series.assignee_member_ids)
     assignment_changes = _AssignmentChanges()
-    for occurrence in await _future_unstarted(db, series.id):
+    occurrences = await _future_unstarted(db, series.id)
+    for occurrence in occurrences:
         await service.apply_changes(
             db, occurrence, changes, actor.account_id, notify=False, series_id=series.id
         )
@@ -231,8 +252,39 @@ async def update_series(
     if content_changed:
         removed_only = assignment_changes.removed - assignment_changes.added
         await _notify_series_updated(db, series, actor.account_id, units, removed_only)
+    current = _series_state(series)
+    changed = sorted(name for name in current if current[name] != previous[name])
+    if changed:
+        # The description and template contents are never audited, only that they changed.
+        shown = [name for name in changed if name in ("title", "priority", "assignee_member_ids")]
+        audit.record(
+            db,
+            audit_actions.SERIES_UPDATED,
+            actor_account_id=actor.account_id,
+            resource_id=series.id,
+            scope_unit_id=series.scope_unit_id,
+            before={name: previous[name] for name in shown}
+            | {"subtask_template_count": len(previous["subtask_templates"])},
+            after={name: current[name] for name in shown}
+            | {
+                "changed_fields": changed,
+                "subtask_template_count": len(series.subtask_templates),
+                "affected_occurrence_count": len(occurrences),
+            },
+        )
     await db.commit()
     return await _view(db, series)
+
+
+def _series_state(series: TaskSeries) -> dict[str, Any]:
+    """Editable series values, compared to find what an edit changed."""
+    return {
+        "title": series.title,
+        "description": series.description,
+        "priority": series.priority,
+        "assignee_member_ids": sorted(series.assignee_member_ids, key=str),
+        "subtask_templates": list(series.subtask_templates),
+    }
 
 
 async def move_series(
@@ -271,6 +323,7 @@ async def move_series(
         position = positions.get(member_id)
         return position is not None and org.member_within_scope(position, destination_id, units)
 
+    source_id = series.scope_unit_id
     series.scope_unit_id = destination_id
     series.assignee_member_ids = [m for m in series.assignee_member_ids if eligible(m)]
     series.subtask_templates = [
@@ -282,9 +335,11 @@ async def move_series(
     series.updated_at = clock.utcnow()
 
     removed: set[uuid.UUID] = set()
+    moved = 0
     for occurrence in occurrences:
         if occurrence.scope_unit_id == destination_id:
             continue
+        moved += 1
         subtasks = list(
             await db.scalars(select(Task).where(Task.parent_id == occurrence.id).with_for_update())
         )
@@ -297,6 +352,19 @@ async def move_series(
         db, series.id, removed, "series_unassigned", actor.account_id
     )
     await _notify_series_updated(db, series, actor.account_id, units, removed)
+    audit.record(
+        db,
+        audit_actions.SERIES_MOVED,
+        actor_account_id=actor.account_id,
+        resource_id=series.id,
+        scope_unit_id=destination_id,
+        before={"scope_unit_id": source_id},
+        after={
+            "scope_unit_id": destination_id,
+            "moved_occurrence_count": moved,
+            "removed_assignee_member_ids": sorted(removed, key=str),
+        },
+    )
     await db.commit()
     return await _view(db, series)
 
@@ -486,7 +554,8 @@ async def stop_series(db: AsyncSession, actor: TaskActor, series_id: uuid.UUID) 
     series.stopped_at = now
     series.stopped_by_account_id = actor.account_id
     series.updated_at = now
-    for occurrence in await _future_unstarted(db, series.id):
+    occurrences = await _future_unstarted(db, series.id)
+    for occurrence in occurrences:
         await service.set_status(
             db,
             occurrence,
@@ -514,6 +583,15 @@ async def stop_series(db: AsyncSession, actor: TaskActor, series_id: uuid.UUID) 
                 reason="series_stopped",
             )
     await _notify_series_updated(db, series, actor.account_id, await org.current_units(db))
+    audit.record(
+        db,
+        audit_actions.SERIES_STOPPED,
+        actor_account_id=actor.account_id,
+        resource_id=series.id,
+        scope_unit_id=series.scope_unit_id,
+        before={"status": SeriesStatus.ACTIVE},
+        after={"status": series.status, "cancelled_occurrence_count": len(occurrences)},
+    )
     await db.commit()
     return await _view(db, series)
 
