@@ -12,7 +12,7 @@ from kora_api.access.policy import TEMPORARY_PASSWORD_LIFETIME
 from kora_api.core.config import Settings
 from kora_api.main import create_app
 from tests.access.helpers import ME, create_account, sign_in
-from tests.conftest import FrozenClock
+from tests.conftest import FrozenClock, production_settings
 from tests.route_tree import mounted_routes
 
 pytestmark = pytest.mark.anyio
@@ -82,8 +82,8 @@ async def test_bootstrap_rejects_taken_username(db_session: AsyncSession) -> Non
 
 def test_bootstrap_has_no_http_endpoint() -> None:
     # Inspect the mounted route tree, not OpenAPI, so undocumented routes cannot hide.
-    for environment in ("local", "production"):
-        paths = [path for _, path in mounted_routes(create_app(Settings(environment=environment)))]
+    for settings in (Settings(environment="local"), production_settings()):
+        paths = [path for _, path in mounted_routes(create_app(settings))]
         assert "/api/v1/auth/sign-in" in paths  # the walk reaches nested routers
         assert not [path for path in paths if "bootstrap" in path.lower()]
 

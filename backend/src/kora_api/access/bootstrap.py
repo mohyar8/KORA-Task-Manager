@@ -10,6 +10,10 @@ import argparse
 import asyncio
 import sys
 
+# This CLI is a composition root: load every domain's models (through the app factory module)
+# so cross-domain foreign keys, e.g. `audit_records.scope_unit_id` -> `org_units`, resolve when
+# the session flushes. `access` itself never imports `organization`.
+import kora_api.main  # noqa: F401  # pyright: ignore[reportUnusedImport]
 from kora_api.access import service
 from kora_api.core.config import get_settings
 from kora_api.core.database import create_engine, create_session_factory

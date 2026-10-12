@@ -66,3 +66,38 @@ Events and meetings live at `/api/v1/calendar/events`. `GET /api/v1/calendar?fro
 Successful state changes are recorded in an append-only audit log (`audit_records`; a database trigger rejects updates and deletes). Only System Admins can read it, at `GET /api/v1/admin/audit-records` (newest first; `limit`/`cursor` paging; filters `occurred_from`/`occurred_to` with offsets, `action`, `actor_account_id`, `resource_type`, `resource_id`, `scope_unit_id`) and `GET /api/v1/admin/audit-records/{id}`. Records hold only short, allowlisted metadata, and reading them grants no access to the tasks, announcements, events or Members they describe. The log starts at migration `6b1e9c4d2a7f`; earlier changes are not backfilled.
 
 API docs (`/docs`, `/redoc`, `/openapi.json`) are on only in the `local` and `test` environments, and always off in `staging` and `production`.
+
+## Release verification
+
+Run all of these from `backend/` with the compose PostgreSQL up. All must pass:
+
+```bash
+uv run pytest                                     # full suite, incl. tests/test_end_to_end.py
+uv run ruff check .
+uv run ruff format --check .
+uv run pyright
+uv run alembic check                              # models match the migrated dev database
+```
+
+To prove a clean install, use a new, disposable database (never `kora` or `kora_test`):
+
+```bash
+docker compose exec -T postgres psql -U kora -d postgres -c "CREATE DATABASE kora_disposable_check"
+export KORA_DATABASE_URL=postgresql+asyncpg://kora:kora@localhost:5432/kora_disposable_check
+uv run alembic upgrade head && uv run alembic check
+uv run python -m kora_api.access.bootstrap firstadmin   # succeeds once
+uv run python -m kora_api.access.bootstrap secondadmin  # must be refused
+unset KORA_DATABASE_URL
+docker compose exec -T postgres psql -U kora -d postgres -c "DROP DATABASE kora_disposable_check"
+```
+
+## Production configuration
+
+- `KORA_ENVIRONMENT=production` (or `staging`) requires an explicit `KORA_DATABASE_URL` and `KORA_DEBUG=false`; otherwise startup fails. API docs are off.
+- Session and CSRF cookies are always `Secure` (and the session cookie `HttpOnly`); there is no setting to relax this. The API must therefore be served over HTTPS.
+- No CORS middleware is configured: browsers may call the API only from the same origin. Serve the frontend and `/api` from one origin (e.g. behind one reverse proxy); cross-origin access needs an approved requirement first.
+- Run migrations (`alembic upgrade head`) and the one-time bootstrap manually; the app never does either on startup.
+
+## Not in scope (deferred)
+
+File uploads, chat and direct messages, email/push notifications, RSVP and attendance, recurring calendar events, external integrations, and Recruitment & Selection (a separate platform) are not implemented.

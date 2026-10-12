@@ -5,6 +5,7 @@ from httpx import ASGITransport, AsyncClient
 
 from kora_api.core.config import Settings
 from kora_api.main import create_app
+from tests.conftest import DEPLOYED_DATABASE_URL
 
 pytestmark = pytest.mark.anyio
 
@@ -26,7 +27,8 @@ async def test_docs_available(environment: Environment) -> None:
 
 @pytest.mark.parametrize("environment", ["staging", "production"])
 async def test_docs_disabled(environment: Environment) -> None:
-    assert await _status_codes(Settings(environment=environment)) == [404, 404, 404]
+    settings = Settings(environment=environment, database_url=DEPLOYED_DATABASE_URL)
+    assert await _status_codes(settings) == [404, 404, 404]
 
 
 @pytest.mark.parametrize("environment", ["staging", "production"])
@@ -34,5 +36,6 @@ async def test_docs_cannot_be_reenabled_via_env(
     environment: Environment, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("KORA_ENVIRONMENT", environment)
+    monkeypatch.setenv("KORA_DATABASE_URL", DEPLOYED_DATABASE_URL.get_secret_value())
     monkeypatch.setenv("KORA_API_DOCS_ENABLED", "true")
     assert await _status_codes(Settings()) == [404, 404, 404]

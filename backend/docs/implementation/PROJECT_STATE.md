@@ -1,6 +1,6 @@
 # KORA Internal Operations Platform — Backend Project State
 
-_Last updated: 2026-10-12 (Milestone 6A)_
+_Last updated: 2026-10-12 (Milestone 7)_
 
 ## Current phase
 
@@ -71,6 +71,7 @@ Governance foundation. Authentication, the organization structure, Members, role
 - Data: PostgreSQL (production), SQLAlchemy 2 async with asyncpg, and Alembic. The engine connects lazily, so the app starts without a DB. Migrations are run manually and never on startup.
 - Local infrastructure: Docker Compose, for local PostgreSQL only.
 - API docs: enabled only when `KORA_ENVIRONMENT` is `local` or `test`, and disabled in `staging` and `production`. There is no override.
+- Staging/production settings refuse the committed local database URL (an explicit `KORA_DATABASE_URL` is required) and `KORA_DEBUG=true`. No CORS middleware: the API is same-origin only.
 - `.serena/` is git-ignored at the repo root.
 - Runtime server: uvicorn.
 - Tables: UUID primary keys and timezone-aware UTC timestamps. Time comes from `core/clock.py`.
@@ -262,6 +263,19 @@ Five internal domains:
 | M5B: Announcements and in-app notifications | Done |
 | M5C: Calendar events and meetings, merged calendar with task due dates | Done |
 | M6A: Central append-only audit log with System Admin read API | Done |
+| M7: Backend release-readiness and integration verification | Done |
+
+## Release readiness (M7)
+
+Verified (2026-10-12):
+- From an empty, disposable database: all 12 migrations apply, a full downgrade to base and a re-upgrade work, `alembic check` is clean, the bootstrap CLI creates the first System Admin once, and a second run is refused. The database was then dropped.
+- Fixed: the bootstrap CLI failed on every database since M6A, because run alone it did not load the organization models that `audit_records` references. It now loads all models; a clean-interpreter test guards this.
+- `tests/test_end_to_end.py`: bootstrap → explicit grant → first Administration and Team → provisioned Members → task (assignment, status, comment) → announcement (recipients, read state) → calendar invitations → notifications and redaction → audit inspection without operational access. No secrets or content reach the audit log or the logs.
+- `tests/test_release_readiness.py`: over the whole mounted route tree, every unsafe route needs a session, a CSRF token and a usable password. Exceptions: sign-in (public), plus sign-out, sign-out-all and change-password (allowed with a temporary password). OpenAPI matches the mounted routes exactly. Staging/production configuration is validated, and production cookies are Secure.
+
+Not verified (deployment prerequisites): hosting target, HTTPS/TLS termination and reverse proxy (needed for the Secure cookies), same-origin frontend serving, production PostgreSQL provisioning, backups and secret management, process supervision and worker count, log collection, CI, and cleanup of expired sessions and throttle rows.
+
+Deferred scope (not implemented): files, chat and direct messages, email/push notifications, RSVP and attendance, recurring calendar events, reminders, external integrations, and Recruitment & Selection (a separate platform).
 
 ## Next intended work
 

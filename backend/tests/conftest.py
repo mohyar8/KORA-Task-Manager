@@ -27,6 +27,12 @@ TEST_DATABASE_URL = os.environ.get(
 )
 
 ClientFactory = Callable[[], AsyncClient]
+# A non-local URL so staging/production settings validate; nothing ever connects to it.
+DEPLOYED_DATABASE_URL = SecretStr("postgresql+asyncpg://kora_app:not-a-real-secret@db.invalid/kora")
+
+
+def production_settings() -> Settings:
+    return Settings(environment="production", database_url=DEPLOYED_DATABASE_URL)
 
 
 @pytest.fixture(scope="session")
