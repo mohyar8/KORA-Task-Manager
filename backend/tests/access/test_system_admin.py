@@ -38,6 +38,7 @@ async def test_bootstrap_creates_system_admin_with_temporary_password(
         "username": "root",
         "must_change_password": True,
         "is_system_admin": True,
+        "member_id": None,
     }
 
 

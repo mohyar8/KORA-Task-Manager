@@ -1,0 +1,16 @@
+.stack { display: grid; gap: var(--space-4); }
+.toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3); }
+.actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.check { display: flex; align-items: center; gap: var(--space-3); min-block-size: var(--min-target); cursor: pointer; }
+.check input { inline-size: 20px; block-size: 20px; accent-color: var(--kora-navy); }
+.list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-3); }
+.item { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-3) var(--space-4); background: var(--ui-surface); border: 1px solid var(--ui-border); border-radius: var(--radius-control); }
+.unread { border-inline-start: 6px solid var(--kora-navy); }
+.text { display: grid; gap: var(--space-2); min-inline-size: 0; flex: 1 1 260px; }
+.meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+.when { color: var(--ui-muted); font-size: var(--text-xs); }
+.redacted { color: var(--ui-muted); }
+.text p { overflow-wrap: anywhere; }
+
+.bell { position: relative; }
+.badge { position: absolute; inset-block-start: 4px; inset-inline-end: 2px; min-inline-size: 18px; block-size: 18px; padding-inline: 4px; border-radius: 9px; background: var(--kora-coral); color: #fff; font-size: 11px; font-weight: 700; line-height: 18px; text-align: center; }

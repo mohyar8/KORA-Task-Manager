@@ -285,3 +285,8 @@ Deferred scope (not implemented): files, chat and direct messages, email/push no
 ## Next intended work
 
 To be scoped. Candidates include reminders, task workspaces and analytics, and the member directory. Each needs approved business rules first.
+
+## 2026-10-15 — frontend-driven addition: `member_id` and Member lookup
+- `AccountResponse.member_id` (via `OrganizationFacts.member_id_for`, so `access` still does not import `organization`) on `/auth/me`, sign-in and change-password responses; null for non-Member accounts.
+- `GET /api/v1/organization/members` (`organization/queries.member_directory`, `DirectoryMemberResponse`): active Members in the scope of any operational permission the caller holds, plus the caller; names and placement only. No new permission was added. Tests: `tests/organization/test_directory.py`. Contract updated (81 operations; frontend copy `frontend/docs/api/API_CONTRACT.md` §6, §8.1a).
+- Known limitation: deactivated or out-of-scope Members are not resolvable by id.

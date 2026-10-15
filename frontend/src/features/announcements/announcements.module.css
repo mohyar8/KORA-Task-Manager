@@ -1,0 +1,23 @@
+.filter { max-inline-size: 280px; margin-block-end: var(--space-4); }
+.link { font-weight: 700; color: var(--kora-navy); overflow-wrap: anywhere; }
+.form { display: grid; gap: var(--space-4); }
+.back { display: inline-flex; align-items: center; gap: var(--space-1); margin-block-end: var(--space-4); font-size: var(--text-sm); }
+:global([dir='ltr']) .backIcon { transform: scaleX(-1); }
+.sections { display: grid; gap: var(--space-5); max-inline-size: 860px; }
+.cardTitle { font-size: var(--text-lg); margin-block-end: var(--space-4); }
+.cardHead { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3); margin-block-end: var(--space-4); }
+.cardHead .cardTitle { margin: 0; }
+.body { white-space: pre-wrap; overflow-wrap: anywhere; }
+.facts { display: grid; grid-template-columns: max-content 1fr; gap: var(--space-2) var(--space-5); margin: 0 0 var(--space-4); }
+.facts dt { color: var(--ui-muted); font-size: var(--text-sm); }
+.facts dd { margin: 0; font-weight: 500; }
+.actions { display: flex; flex-wrap: wrap; gap: var(--space-3); }
+.list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-3); }
+.item { padding: var(--space-3) var(--space-4); border: 1px solid var(--ui-border); border-radius: var(--radius-control); display: grid; gap: var(--space-1); }
+.item .meta { color: var(--ui-muted); font-size: var(--text-xs); }
+.hint { color: var(--ui-muted); font-size: var(--text-sm); }
+.notice { padding: var(--space-3) var(--space-4); border-radius: var(--radius-control); background: var(--state-warning-bg); color: var(--state-warning); }
+.pickList { list-style: none; margin: 0; padding: 0; max-block-size: 240px; overflow-y: auto; display: grid; gap: 2px; border: 1px solid var(--ui-border); border-radius: var(--radius-control); }
+.pick { display: flex; align-items: center; gap: var(--space-3); min-block-size: var(--min-target); padding-inline: var(--space-3); cursor: pointer; }
+.pick:hover { background: var(--ui-surface-soft); }
+.pick input { inline-size: 20px; block-size: 20px; accent-color: var(--kora-navy); }

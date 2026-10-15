@@ -1,0 +1,13 @@
+.header { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: var(--space-4); margin-block-end: var(--space-6); animation: rise 0.45s var(--ease) both; }
+.title { font-size: var(--text-xl); font-weight: 800; letter-spacing: -0.01em; }
+.title::after { content: ''; display: block; inline-size: 44px; block-size: 5px; margin-block-start: var(--space-2); border-radius: 3px; background: var(--grad-warm); }
+.description { color: var(--ui-muted); margin-block-start: var(--space-2); max-inline-size: 60ch; }
+.actions { display: flex; gap: var(--space-3); flex-wrap: wrap; }
+
+.tableWrap { position: relative; overflow-x: auto; border-radius: var(--radius-card); background: var(--ui-surface); box-shadow: var(--shadow-card); animation: rise 0.5s var(--ease) both; }
+.tableWrap table { inline-size: 100%; border-collapse: separate; border-spacing: 0; font-size: var(--text-sm); }
+.tableWrap th { text-align: start; background: var(--ui-surface-soft); color: var(--kora-navy); font-weight: 700; padding: var(--space-3) var(--space-4); white-space: nowrap; font-size: var(--text-xs); letter-spacing: 0.02em; }
+.tableWrap td { padding: var(--space-4); border-block-start: 1px solid var(--ui-border); vertical-align: middle; transition: background 0.15s; }
+.tableWrap tbody tr:hover td { background: color-mix(in srgb, var(--kora-fuchsia) 5%, white); }
+
+.card { background: var(--ui-surface); border-radius: var(--radius-card); padding: var(--space-5); box-shadow: var(--shadow-card); animation: rise 0.5s var(--ease) both; }

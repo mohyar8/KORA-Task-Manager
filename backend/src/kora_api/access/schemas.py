@@ -21,6 +21,9 @@ class AccountResponse(BaseModel):
     username: str
     must_change_password: bool
     is_system_admin: bool
+    # The Member record linked to this account; null for accounts that are not Members
+    # (e.g. the bootstrap System Admin).
+    member_id: uuid.UUID | None
 
 
 class SessionResponse(BaseModel):

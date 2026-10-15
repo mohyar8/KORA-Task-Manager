@@ -1,0 +1,24 @@
+.filters { display: grid; gap: var(--space-3); grid-template-columns: 1fr; margin-block-end: var(--space-4); }
+@media (min-width: 720px) { .filters { grid-template-columns: 2fr 1fr 1fr 1fr; align-items: end; } }
+.count { color: var(--ui-muted); font-size: var(--text-sm); margin-block-end: var(--space-2); }
+.nameLink { font-weight: 700; color: var(--kora-navy); }
+.mono { direction: ltr; unicode-bidi: plaintext; }
+.form { display: grid; gap: var(--space-4); }
+.twoCol { display: grid; gap: var(--space-4); }
+@media (min-width: 720px) { .twoCol { grid-template-columns: 1fr 1fr; } }
+.secret { display: grid; gap: var(--space-4); }
+.passwordRow { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
+.password { direction: ltr; unicode-bidi: plaintext; font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace; font-size: var(--text-lg); letter-spacing: 0.04em; padding: var(--space-3) var(--space-4); background: var(--ui-surface-soft); border: 1px dashed var(--kora-navy); border-radius: var(--radius-control); user-select: all; overflow-wrap: anywhere; }
+.warning { display: flex; align-items: flex-start; gap: var(--space-2); padding: var(--space-3); border-radius: var(--radius-control); background: var(--state-warning-bg); color: var(--state-warning); font-size: var(--text-sm); }
+.warning svg { flex: none; margin-block-start: 3px; }
+.back { display: inline-flex; align-items: center; gap: var(--space-1); margin-block-end: var(--space-4); font-size: var(--text-sm); }
+.sections { display: grid; gap: var(--space-5); max-inline-size: 860px; }
+.cardTitle { font-size: var(--text-lg); margin-block-end: var(--space-4); }
+.facts { display: grid; grid-template-columns: max-content 1fr; gap: var(--space-2) var(--space-5); margin: 0 0 var(--space-4); }
+.facts dt { color: var(--ui-muted); font-size: var(--text-sm); }
+.facts dd { margin: 0; font-weight: 500; }
+.actions { display: flex; flex-wrap: wrap; gap: var(--space-3); }
+.note { color: var(--ui-muted); font-size: var(--text-sm); }
+
+/* The arrow points toward the inline start: right in RTL, left in LTR. */
+:global([dir='ltr']) .backIcon { transform: scaleX(-1); }

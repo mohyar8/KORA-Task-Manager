@@ -9,6 +9,7 @@ from kora_api.access.dependencies import (
     SESSION_COOKIE,
     SESSION_COOKIE_PATH,
     AuthenticatedSession,
+    OrgFacts,
 )
 from kora_api.access.models import UserAccount
 from kora_api.access.schemas import (
@@ -26,7 +27,9 @@ INVALID_CREDENTIALS = "Invalid username or password."
 
 
 @router.post("/sign-in", responses=errors((401, "Invalid username or password."), 422, 429))
-async def sign_in(body: SignInRequest, response: Response, db: DbSession) -> SessionResponse:
+async def sign_in(
+    body: SignInRequest, response: Response, db: DbSession, facts: OrgFacts
+) -> SessionResponse:
     try:
         issued = await service.sign_in(db, body.username, body.password)
     except service.AuthenticationFailedError:
@@ -37,7 +40,7 @@ async def sign_in(body: SignInRequest, response: Response, db: DbSession) -> Ses
             "Too many failed sign-in attempts. Try again later.",
             headers={"Retry-After": str(exc.retry_after_seconds)},
         ) from None
-    return await _start_session(db, response, issued)
+    return await _start_session(db, facts, response, issued)
 
 
 @router.post(
@@ -61,8 +64,10 @@ async def sign_out_all(auth: AuthenticatedSession, response: Response, db: DbSes
 
 
 @router.get("/me", responses=errors(401))
-async def current_account(auth: AuthenticatedSession, db: DbSession) -> AccountResponse:
-    return await _account_response(db, auth.account)
+async def current_account(
+    auth: AuthenticatedSession, db: DbSession, facts: OrgFacts
+) -> AccountResponse:
+    return await _account_response(db, facts, auth.account)
 
 
 @router.post(
@@ -72,7 +77,11 @@ async def current_account(auth: AuthenticatedSession, db: DbSession) -> AccountR
     ),
 )
 async def change_password(
-    body: ChangePasswordRequest, auth: AuthenticatedSession, response: Response, db: DbSession
+    body: ChangePasswordRequest,
+    auth: AuthenticatedSession,
+    response: Response,
+    db: DbSession,
+    facts: OrgFacts,
 ) -> SessionResponse:
     try:
         issued = await service.change_password(
@@ -84,11 +93,11 @@ async def change_password(
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_CONTENT, "Password does not meet the policy."
         ) from None
-    return await _start_session(db, response, issued)
+    return await _start_session(db, facts, response, issued)
 
 
 async def _start_session(
-    db: DbSession, response: Response, issued: service.IssuedSession
+    db: DbSession, facts: OrgFacts, response: Response, issued: service.IssuedSession
 ) -> SessionResponse:
     session = issued.session
     # The session token travels only in this HttpOnly cookie, never in a response body.
@@ -109,7 +118,7 @@ async def _start_session(
         )
     account = await db.get_one(UserAccount, session.account_id)
     return SessionResponse(
-        account=await _account_response(db, account), csrf_token=issued.csrf_token
+        account=await _account_response(db, facts, account), csrf_token=issued.csrf_token
     )
 
 
@@ -120,10 +129,13 @@ def _clear_cookies(response: Response) -> None:
     response.delete_cookie(CSRF_COOKIE, path=CSRF_COOKIE_PATH, secure=True, samesite="strict")
 
 
-async def _account_response(db: DbSession, account: UserAccount) -> AccountResponse:
+async def _account_response(
+    db: DbSession, facts: OrgFacts, account: UserAccount
+) -> AccountResponse:
     return AccountResponse(
         id=account.id,
         username=account.username,
         must_change_password=account.password_is_temporary,
         is_system_admin=await service.is_system_admin(db, account.id),
+        member_id=await facts.member_id_for(db, account.id),
     )

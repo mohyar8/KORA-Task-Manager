@@ -1,0 +1,5 @@
+.list { display: inline-flex; max-inline-size: 100%; gap: var(--space-1); padding: 5px; overflow-x: auto; scrollbar-width: none; background: var(--ui-navy-tint); border-radius: 999px; }
+.tab { flex: none; min-block-size: 40px; padding: 0 var(--space-5); border: 0; background: transparent; color: var(--ui-muted); font-weight: 700; font-size: var(--text-sm); cursor: pointer; border-radius: 999px; transition: background 0.2s var(--ease), color 0.2s, box-shadow 0.2s; }
+.tab:hover { color: var(--kora-navy); }
+.active { background: var(--ui-surface); color: var(--kora-navy); box-shadow: 0 4px 12px -4px rgb(26 35 80 / 0.35); }
+.panel { padding-block-start: var(--space-5); animation: rise 0.35s var(--ease) both; }

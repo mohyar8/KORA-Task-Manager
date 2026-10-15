@@ -53,5 +53,8 @@ class SqlOrganizationFacts:
         role_key, unit_id = row
         return RoleFact(role_key=role_key, unit_id=unit_id)
 
+    async def member_id_for(self, db: AsyncSession, account_id: uuid.UUID) -> uuid.UUID | None:
+        return await db.scalar(select(Member.id).where(Member.account_id == account_id))
+
     def role_keys(self) -> frozenset[str]:
         return frozenset(RoleKey)

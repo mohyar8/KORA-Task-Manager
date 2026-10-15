@@ -1,8 +1,8 @@
 # KORA API Contract
 
-_Backend state as of Milestone 8B (2026-10-12). Sources: the mounted route tree, the generated OpenAPI schema, the route handlers and services, and their tests. This document describes implemented behavior only; where code and OpenAPI disagree, the code is described and the difference is listed in [§15](#15-known-discrepancies-and-observations)._
+_Backend state as of Milestone 8B plus the member lookup addition (2026-10-15). Sources: the mounted route tree, the generated OpenAPI schema, the route handlers and services, and their tests. This document describes implemented behavior only; where code and OpenAPI disagree, the code is described and the difference is listed in [§15](#15-known-discrepancies-and-observations)._
 
-All 80 API operations are listed here. Every mounted route is in OpenAPI, apart from the documentation routes themselves (`/docs`, `/docs/oauth2-redirect`, `/redoc`, `/openapi.json`), which exist only in `local`/`test` (§1.7). Coverage is checked by `tests/test_release_readiness.py::test_openapi_documents_exactly_the_mounted_routes`.
+All 81 API operations are listed here. Every mounted route is in OpenAPI, apart from the documentation routes themselves (`/docs`, `/docs/oauth2-redirect`, `/redoc`, `/openapi.json`), which exist only in `local`/`test` (§1.7). Coverage is checked by `tests/test_release_readiness.py::test_openapi_documents_exactly_the_mounted_routes`.
 
 **Contents**
 
@@ -173,7 +173,7 @@ No authentication and no database. **200** `{"status": "ok"}`.
 ## 6. Auth and own access (`/api/v1/auth`, `/api/v1/access`)
 
 **Schemas**
-- `AccountResponse`: `id` uuid, `username` string, `must_change_password` bool, `is_system_admin` bool.
+- `AccountResponse`: `id` uuid, `username` string, `must_change_password` bool, `is_system_admin` bool, `member_id` uuid|null (the Member record linked to the account; **null for accounts that are not Members**, e.g. the bootstrap System Admin). Also present inside `SessionResponse.account`.
 - `SessionResponse`: `account` AccountResponse, `csrf_token` string.
 
 ### `POST /api/v1/auth/sign-in` — public, no CSRF
@@ -264,6 +264,12 @@ Rules (422 = structure violation, 409 = state conflict):
 - **Move.** Only Teams can move (422), only to an active Administration (422), and not to the Administration they are already in (422). An archived Team returns 409. Placement history is kept, and Members of the moved Team are re-evaluated for task eligibility (§14).
 - **Archive.** KORA and the PMO cannot be archived (422). An already-archived unit returns 409. The unit must not still contain active sub-units, active Members, or open role assignments scoped to it (409 `"Cannot archive: ..."`).
 - Permission is checked **before** existence, so an unknown `unit_id` returns **403**, not 404.
+
+### 8.1a Member lookup (`GET /api/v1/organization/members`) — CurrentAccess
+The lookup for pickers and names (assignees, recipients, invitees, task creators). **200** `DirectoryMemberResponse[]` ordered by `full_name`: `id` (the Member id used everywhere else), `full_name`, `team_id|null`, `role_key|null`. **No contact or academic data.**
+- **Who is listed:** active Members (Member and account both active) whose Team or role unit is within the scope of **any unit where the caller holds one of `task.view`, `task.create`, `task.manage`, `announcement.publish`, `announcement.manage`, `calendar.create`, `calendar.manage`, `organization.manage`**, plus the caller's own Member record. The normal role defaults therefore show a Team Member their own Team, an Administration Manager their Administration, and the Event/Project Leader everyone; overrides expand or restrict it like any other scoped permission.
+- **Not listed:** deactivated Members and Members outside the caller's scope. A Member id seen elsewhere (e.g. a former assignee in task history) may therefore be missing from the lookup; clients must show a neutral placeholder rather than fail.
+- The list is unpaginated. It is not the System Admin list (`/admin/members`), which keeps all profile data.
 
 ### 8.2 Members (`/api/v1/admin/members`) — SystemAdmin only
 - `MemberResponse`: `id`, `account_id`, `username`, `full_name`, `university_id|null`, `phone|null`, `email|null`, `major|null`, `academic_year|null`, `status` MemberStatus, `team_id|null`, `role_key` RoleKey|null, `role_unit_id|null`. The last three are null when deactivated.
@@ -587,6 +593,7 @@ Remaining (unchanged on purpose, or awaiting a decision):
 | 8 | GET | `/api/v1/organization/units` | access |
 | 9 | POST | `/api/v1/organization/units` | access |
 | 10 | GET | `/api/v1/organization/units/{unit_id}` | access |
+| 10a | GET | `/api/v1/organization/members` | access |
 | 11 | POST | `/api/v1/organization/units/{unit_id}/move` | access |
 | 12 | POST | `/api/v1/organization/units/{unit_id}/archive` | access |
 | 13 | GET | `/api/v1/admin/members` | admin |

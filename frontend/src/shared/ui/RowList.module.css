@@ -1,0 +1,31 @@
+.list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-3); }
+.row { position: relative; display: flex; align-items: center; gap: var(--space-4); padding: var(--space-4) var(--space-5); border-radius: 18px; background: var(--ui-surface); box-shadow: var(--shadow-card); animation: rise 0.45s var(--ease) both; transition: transform 0.2s var(--ease), box-shadow 0.2s; }
+.row::before { content: ''; position: absolute; inset-block: 14px; inset-inline-start: 0; inline-size: 5px; border-radius: 0 4px 4px 0; background: transparent; }
+:global([dir='rtl']) .row::before { border-radius: 4px 0 0 4px; }
+.row:hover { transform: translateY(-2px); box-shadow: var(--shadow-lift); }
+.edge_navy::before { background: var(--kora-navy); }
+.edge_fuchsia::before { background: var(--kora-fuchsia); }
+.edge_coral::before { background: var(--kora-coral); }
+.edge_green::before { background: var(--kora-green); }
+.edge_gray::before { background: #aab0c6; }
+.muted { opacity: 0.72; }
+.main { flex: 1; min-inline-size: 0; display: grid; gap: 6px; }
+.title { font-weight: 700; font-size: var(--text-md); color: var(--kora-navy-deep); overflow-wrap: anywhere; }
+.titleLink { color: inherit; text-decoration: none; background: linear-gradient(var(--kora-fuchsia), var(--kora-fuchsia)) 0 100% / 0 2px no-repeat; transition: background-size 0.25s var(--ease), color 0.2s; }
+.titleLink:hover { color: var(--kora-fuchsia); background-size: 100% 2px; }
+.meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); color: var(--ui-muted); font-size: var(--text-sm); }
+.trailing { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: var(--space-2); flex: none; }
+
+.avatar { display: inline-grid; place-items: center; border-radius: 16px; color: #fff; font-weight: 800; flex: none; transition: transform 0.25s var(--ease); }
+.row:hover .avatar { transform: rotate(-6deg) scale(1.06); }
+.navy { background: var(--grad-cool); }
+.fuchsia { background: linear-gradient(135deg, var(--kora-fuchsia), #b0589f); }
+.coral { background: linear-gradient(135deg, var(--coral-deep), var(--kora-coral)); }
+.green { background: linear-gradient(135deg, var(--green-deep), var(--kora-green)); }
+.gray { background: linear-gradient(135deg, #7f86a3, #a5abc3); }
+
+@media (max-width: 640px) {
+  .row { flex-wrap: wrap; padding: var(--space-4); }
+  .trailing { inline-size: 100%; justify-content: flex-start; }
+}
+@media (prefers-reduced-motion: reduce) { .row { animation: none; transition: none; } }

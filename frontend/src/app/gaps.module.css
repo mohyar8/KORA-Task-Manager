@@ -1,0 +1,2 @@
+.list { margin: 0; padding-inline-start: var(--space-5); display: grid; gap: var(--space-3); max-inline-size: 70ch; }
+.stack { display: grid; gap: var(--space-5); }

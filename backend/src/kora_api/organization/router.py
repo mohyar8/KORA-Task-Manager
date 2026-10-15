@@ -7,12 +7,13 @@ from kora_api.access import service as access_service
 from kora_api.access.dependencies import CurrentAccess, SystemAdmin
 from kora_api.core.database import DbSession
 from kora_api.core.errors import AUTHENTICATED, errors
-from kora_api.organization import members, units
+from kora_api.organization import members, queries, units
 from kora_api.organization.constants import RoleKey
 from kora_api.organization.schemas import (
     ChangeTeamRequest,
     CreateMemberRequest,
     CreateUnitRequest,
+    DirectoryMemberResponse,
     MemberCreatedResponse,
     MemberProfileFields,
     MemberResponse,
@@ -26,7 +27,29 @@ from kora_api.organization.schemas import (
 units_router = APIRouter(
     prefix="/organization/units", tags=["organization"], responses=AUTHENTICATED
 )
+directory_router = APIRouter(
+    prefix="/organization/members", tags=["organization"], responses=AUTHENTICATED
+)
 members_router = APIRouter(prefix="/admin/members", tags=["admin"], responses=AUTHENTICATED)
+
+
+# --- Member lookup: names and placement of the people the caller works with ----------------------
+
+
+@directory_router.get("")
+async def list_directory(access: CurrentAccess, db: DbSession) -> list[DirectoryMemberResponse]:
+    """Active Members within the scope of any unit where the caller holds an operational
+    permission, plus the caller's own record. No contact details."""
+    entries = await queries.member_directory(db, access.snapshot, access.account.id)
+    return [
+        DirectoryMemberResponse(
+            id=e.member_id,
+            full_name=e.full_name,
+            team_id=e.team_id,
+            role_key=RoleKey(e.role_key) if e.role_key else None,
+        )
+        for e in entries
+    ]
 
 
 # --- Units: scoped by organization.manage --------------------------------------------------------

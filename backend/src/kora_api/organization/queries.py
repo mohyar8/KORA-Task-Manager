@@ -7,8 +7,10 @@ from dataclasses import dataclass
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from kora_api.access.evaluation import AccessSnapshot
 from kora_api.access.models import AccountStatus, UserAccount
 from kora_api.access.org_facts import UnitInfo
+from kora_api.access.permissions import Permission
 from kora_api.core import clock
 from kora_api.organization.constants import MemberStatus
 from kora_api.organization.facts import SqlOrganizationFacts
@@ -102,3 +104,57 @@ def member_within_scope(
         scope_unit_id in unit_chain(unit, units)
         for unit in (position.team_id, position.role_unit_id)
     )
+
+
+# Holding any operational permission over a unit lets the caller see who works under it, because
+# that is who they can assign, invite or address there. Deliberately NOT organization.manage alone.
+DIRECTORY_PERMISSIONS = (
+    Permission.TASK_VIEW,
+    Permission.TASK_CREATE,
+    Permission.TASK_MANAGE,
+    Permission.ANNOUNCEMENT_PUBLISH,
+    Permission.ANNOUNCEMENT_MANAGE,
+    Permission.CALENDAR_CREATE,
+    Permission.CALENDAR_MANAGE,
+    Permission.ORGANIZATION_MANAGE,
+)
+
+
+@dataclass(frozen=True)
+class DirectoryEntry:
+    """A Member as other people may see them: name and organizational context, no contact data."""
+
+    member_id: uuid.UUID
+    full_name: str
+    team_id: uuid.UUID | None
+    role_key: str | None
+
+
+async def member_directory(
+    db: AsyncSession, snapshot: AccessSnapshot, account_id: uuid.UUID
+) -> list[DirectoryEntry]:
+    """Active Members within the scope of any unit where the caller holds an operational
+    permission, plus the caller's own Member record. Ordered by name."""
+    scope: set[uuid.UUID] = set()
+    for permission in DIRECTORY_PERMISSIONS:
+        scope |= snapshot.units_with(permission)
+    units = await current_units(db)
+    rows = await db.execute(
+        _positions_query().add_columns(RoleAssignment.role_key).order_by(Member.full_name)
+    )
+    entries: list[DirectoryEntry] = []
+    for member, account_status, team_id, role_unit_id, role_key in rows:
+        position = _position(member, account_status, team_id, role_unit_id)
+        if not position.active:
+            continue
+        reach = set(unit_chain(team_id, units)) | set(unit_chain(role_unit_id, units))
+        if member.account_id == account_id or reach & scope:
+            entries.append(
+                DirectoryEntry(
+                    member_id=member.id,
+                    full_name=member.full_name,
+                    team_id=team_id,
+                    role_key=str(role_key) if role_key else None,
+                )
+            )
+    return entries

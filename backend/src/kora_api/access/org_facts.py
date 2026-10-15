@@ -39,6 +39,10 @@ class OrganizationFacts(Protocol):
         """The organizational role assignment held by the account's Member at `at`, if any."""
         ...
 
+    async def member_id_for(self, db: AsyncSession, account_id: uuid.UUID) -> uuid.UUID | None:
+        """The id of the Member record linked to the account (any status), if one exists."""
+        ...
+
     def role_keys(self) -> frozenset[str]:
         """All organizational role keys."""
         ...

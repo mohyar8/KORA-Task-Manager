@@ -1,0 +1,139 @@
+/* Ghroob (official brand typeface). OTF files from the identity package; see roadmap G11 (licence). */
+@font-face { font-family: 'Ghroob'; src: url('/fonts/itfGhroob-Light.otf') format('opentype'); font-weight: 300; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Ghroob'; src: url('/fonts/itfGhroob-Regular.otf') format('opentype'); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Ghroob'; src: url('/fonts/itfGhroob-Medium.otf') format('opentype'); font-weight: 500; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Ghroob'; src: url('/fonts/itfGhroob-Bold.otf') format('opentype'); font-weight: 700; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Ghroob'; src: url('/fonts/itfGhroob-ExtraBold.otf') format('opentype'); font-weight: 800; font-style: normal; font-display: swap; }
+
+:root {
+  /* The four brand colors (the only hues in the interface) */
+  --kora-navy: #2d3b70;
+  --kora-fuchsia: #944399;
+  --kora-coral: #f26557;
+  --kora-green: #4ea649;
+  --kora-white: #ffffff;
+  /* Shades/tints derived from them */
+  --kora-navy-deep: #1a2350;
+  --kora-navy-ink: #111936;
+  --coral-deep: #c23f33; /* readable on white (AA) */
+  --green-deep: #2f7a2b;
+  --fuchsia-deep: #7a3480;
+
+  --ui-text: #151c3a;
+  --ui-muted: #5d6586;
+  --ui-border: color-mix(in srgb, var(--kora-navy) 14%, white);
+  --ui-surface: #ffffff;
+  --ui-surface-soft: color-mix(in srgb, var(--kora-navy) 5%, white);
+  --ui-navy-tint: color-mix(in srgb, var(--kora-navy) 9%, white);
+  --page-bg: color-mix(in srgb, var(--kora-navy) 4%, white);
+
+  /* Meaning: coral = needs attention, green = done, fuchsia = in motion, navy = info. Always paired with text/icons. */
+  --state-danger: var(--coral-deep);
+  --state-danger-bg: color-mix(in srgb, var(--kora-coral) 14%, white);
+  --state-warning: var(--fuchsia-deep);
+  --state-warning-bg: color-mix(in srgb, var(--kora-fuchsia) 12%, white);
+  --state-success: var(--green-deep);
+  --state-success-bg: color-mix(in srgb, var(--kora-green) 15%, white);
+  --state-info: var(--kora-navy);
+  --state-info-bg: var(--ui-navy-tint);
+
+  --grad-brand: linear-gradient(135deg, var(--kora-navy) 0%, #4a3a8a 55%, var(--kora-fuchsia) 100%);
+  --grad-warm: linear-gradient(135deg, var(--kora-coral), var(--kora-fuchsia));
+  --grad-cool: linear-gradient(135deg, var(--kora-navy), #3f5fa8);
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 64px;
+  --space-9: 96px;
+
+  --container-max: 1360px;
+  --page-pad: clamp(16px, 3.5vw, 40px);
+  
+  
+  --header-height: 64px;
+  --bottom-nav-height: 68px;
+
+  --radius-control: 12px;
+  --radius-card: 20px;
+  --radius-large: 28px;
+
+  --shadow-card: 0 1px 2px rgb(26 35 80 / 0.05), 0 10px 28px -14px rgb(26 35 80 / 0.22);
+  --shadow-lift: 0 2px 4px rgb(26 35 80 / 0.06), 0 18px 36px -14px rgb(26 35 80 / 0.32);
+  --shadow-overlay: 0 24px 64px -12px rgb(17 25 54 / 0.45);
+
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --font: 'Ghroob', system-ui, 'Segoe UI', Tahoma, sans-serif;
+  --text-xs: 0.8125rem;
+  --text-sm: 0.9375rem;
+  --text-md: 1.0625rem;
+  --text-lg: 1.3125rem;
+  --text-xl: clamp(1.6rem, 1.25rem + 1.4vw, 2.25rem);
+  --text-display: clamp(2.2rem, 1.5rem + 2.6vw, 3.6rem);
+
+  --focus-ring: 0 0 0 3px #fff, 0 0 0 5px var(--kora-fuchsia);
+  --min-target: 44px;
+}
+
+*,
+*::before,
+*::after { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  min-block-size: 100dvh;
+  background-image: radial-gradient(900px 500px at 100% -10%, color-mix(in srgb, var(--kora-fuchsia) 9%, transparent), transparent 70%), radial-gradient(800px 480px at 0% 110%, color-mix(in srgb, var(--kora-coral) 8%, transparent), transparent 70%);
+  background-attachment: fixed;
+  font-family: var(--font);
+  font-size: var(--text-md);
+  font-weight: 400;
+  line-height: 1.6;
+  color: var(--ui-text);
+  background-color: var(--page-bg);
+  overflow-x: hidden;
+}
+
+h1, h2, h3, h4, p { margin: 0; }
+h1, h2, h3, h4 { font-weight: 700; line-height: 1.25; color: var(--kora-navy-deep); }
+
+a { color: var(--kora-navy); text-underline-offset: 3px; }
+a:hover { color: var(--kora-fuchsia); }
+
+button, input, select, textarea { font: inherit; color: inherit; }
+img, svg { max-width: 100%; }
+
+:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: 6px; }
+
+::selection { background: color-mix(in srgb, var(--kora-fuchsia) 28%, white); }
+
+@keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes pop { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: none; } }
+.rise { animation: rise 0.45s var(--ease) both; }
+
+.visually-hidden {
+  position: absolute !important;
+  width: 1px; height: 1px; margin: -1px; padding: 0; border: 0;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
+}
+
+.skip-link {
+  position: absolute; inset-block-start: -100px; inset-inline-start: var(--space-4);
+  z-index: 100; padding: var(--space-2) var(--space-4);
+  background: var(--kora-navy); color: #fff; border-radius: var(--radius-control);
+}
+.skip-link:focus { inset-block-start: var(--space-3); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

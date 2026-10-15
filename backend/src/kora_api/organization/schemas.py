@@ -122,3 +122,12 @@ class MemberCreatedResponse(BaseModel):
 
 class TemporaryPasswordResponse(BaseModel):
     temporary_password: str
+
+
+class DirectoryMemberResponse(BaseModel):
+    """A Member as visible to colleagues: no contact or academic data."""
+
+    id: uuid.UUID
+    full_name: str
+    team_id: uuid.UUID | None
+    role_key: RoleKey | None
