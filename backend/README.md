@@ -101,3 +101,14 @@ docker compose exec -T postgres psql -U kora -d postgres -c "DROP DATABASE kora_
 ## Not in scope (deferred)
 
 File uploads, chat and direct messages, email/push notifications, RSVP and attendance, recurring calendar events, external integrations, and Recruitment & Selection (a separate platform) are not implemented.
+
+## Deploying on Vercel (multi-service project)
+
+The repository root `vercel.json` deploys `backend/` (FastAPI, entrypoint `index.py`) and `frontend/` (Vite) as one project on one domain: `/api/*` goes to the backend unchanged (routes already live under `/api/v1`), everything else to the frontend. Same origin means the `Secure` cookies and CSRF header work without CORS.
+
+Set these environment variables on the project (never commit them):
+
+- `KORA_ENVIRONMENT=production`
+- `KORA_DATABASE_URL=postgresql+asyncpg://…` — a hosted PostgreSQL (the app refuses to start in production with the local credentials).
+
+Migrations and the first System Admin are **not** run by Vercel: run `uv run alembic upgrade head` and `uv run python -m kora_api.access.bootstrap <username>` once from a machine that can reach that database.
