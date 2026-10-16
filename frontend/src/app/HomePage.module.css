@@ -1,0 +1,7 @@
+
+.bellAlert { animation: homeBellGlow 1.8s ease-in-out infinite; }
+@keyframes homeBellGlow {
+  0%, 100% { box-shadow: 0 0 0 0 rgb(242 101 87 / 0.6), 0 0 8px 1px rgb(242 101 87 / 0.45); }
+  50% { box-shadow: 0 0 0 10px rgb(242 101 87 / 0), 0 0 20px 5px rgb(242 101 87 / 0.8); }
+}
+@media (prefers-reduced-motion: reduce) { .bellAlert { animation: none; box-shadow: 0 0 12px 2px rgb(242 101 87 / 0.8); } }

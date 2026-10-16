@@ -9,7 +9,7 @@ export function NotificationBell({ className }: { className?: string }) {
   const t = useT()
   const count = useUnreadCount()
   return (
-    <NavLink to="/notifications" className={`${className ?? ''} ${styles.bell}`} aria-label={t('notif.bell', { n: count })}>
+    <NavLink to="/notifications" className={`${className ?? ''} ${styles.bell} ${count > 0 ? styles.alert : ''}`} aria-label={t('notif.bell', { n: count })}>
       <Bell size={20} aria-hidden="true" />
       {count > 0 && <span className={styles.badge} aria-hidden="true">{count > 99 ? '99+' : count}</span>}
     </NavLink>

@@ -14,3 +14,20 @@
 
 .bell { position: relative; }
 .badge { position: absolute; inset-block-start: 4px; inset-inline-end: 2px; min-inline-size: 18px; block-size: 18px; padding-inline: 4px; border-radius: 9px; background: var(--kora-coral); color: #fff; font-size: 11px; font-weight: 700; line-height: 18px; text-align: center; }
+
+/* Unread items: the bell keeps pulsing a coral glow and ringing slightly until they are read. */
+.alert { color: #fff; background: rgb(242 101 87 / 0.28); animation: bellGlow 1.8s ease-in-out infinite; }
+.alert svg { transform-origin: 50% 10%; animation: bellRing 3.6s ease-in-out infinite; }
+@keyframes bellGlow {
+  0%, 100% { box-shadow: 0 0 0 0 rgb(242 101 87 / 0.65), 0 0 6px 1px rgb(242 101 87 / 0.5); }
+  50% { box-shadow: 0 0 0 9px rgb(242 101 87 / 0), 0 0 16px 4px rgb(242 101 87 / 0.85); }
+}
+@keyframes bellRing {
+  0%, 55%, 100% { transform: rotate(0); }
+  60% { transform: rotate(14deg); } 66% { transform: rotate(-12deg); }
+  72% { transform: rotate(9deg); } 78% { transform: rotate(-6deg); } 84% { transform: rotate(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .alert, .alert svg { animation: none; }
+  .alert { box-shadow: 0 0 10px 2px rgb(242 101 87 / 0.8); }
+}

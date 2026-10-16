@@ -27,7 +27,7 @@ export function HomePage() {
           <p className={styles.heroTitle} dir="auto">{account?.username}</p>
           <p className={styles.heroSub}>{t('home.greeting.sub')}</p>
         </div>
-        <Link to="/notifications" className={styles.bellCard}>
+        <Link to="/notifications" className={`${styles.bellCard} ${unread > 0 ? styles.bellAlert : ''}`}>
           <span className={styles.bellIcon}><Bell size={22} aria-hidden="true" /></span>
           <span className={styles.bellCount}>{unread}</span>
           <span className={styles.bellLabel}>{t('home.notifications')}</span>
