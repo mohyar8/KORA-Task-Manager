@@ -503,3 +503,87 @@ async def test_member_listing_shows_current_team_and_role(
     assert [(m["username"], m["team_id"], m["role_key"]) for m in listed] == [
         ("pmo", str(structure.team_a2), "pmo_leader")
     ]
+
+
+# --- Roles held without a Team (Event/Project leadership, PMO, Administration Managers) ---------
+
+
+async def _create_without_team(client: AsyncClient, csrf: str, **overrides: Any) -> Response:
+    body = {**PROFILE, "username": "boss", "role_key": "event_project_leader", **overrides}
+    return await _post(client, csrf, MEMBERS, body)
+
+
+@pytest.mark.parametrize(
+    ("role", "unit"),
+    [
+        ("event_project_leader", KORA_UNIT_ID),
+        ("deputy_leader", KORA_UNIT_ID),
+        ("pmo_leader", PMO_UNIT_ID),
+        ("pmo_member", PMO_UNIT_ID),
+    ],
+)
+async def test_non_team_roles_can_be_provisioned_without_a_team(
+    db_client: AsyncClient, admin_csrf: str, db_session: AsyncSession, role: str, unit: Any
+) -> None:
+    response = await _create_without_team(db_client, admin_csrf, role_key=role)
+    assert response.status_code == 201, response.text
+    member = response.json()["member"]
+    assert member["team_id"] is None
+    assert member["role_key"] == role
+    assert member["role_unit_id"] == str(unit)
+    placements, roles = await _open_rows(db_session, member["id"])
+    assert placements == [] and len(roles) == 1
+
+
+async def test_administration_manager_without_a_team_is_scoped_to_the_administration(
+    db_client: AsyncClient, admin_csrf: str, structure: Structure
+) -> None:
+    response = await _create_without_team(
+        db_client,
+        admin_csrf,
+        role_key="administration_manager",
+        administration_id=str(structure.admin_a),
+    )
+    assert response.status_code == 201, response.text
+    assert response.json()["member"]["role_unit_id"] == str(structure.admin_a)
+    assert response.json()["member"]["team_id"] is None
+
+
+@pytest.mark.parametrize("role", ["member", "team_leader"])
+async def test_team_roles_still_require_a_team(
+    db_client: AsyncClient, admin_csrf: str, role: str
+) -> None:
+    response = await _create_without_team(db_client, admin_csrf, role_key=role)
+    assert response.status_code == 422
+    assert response.json()["detail"] == "A Team is required for this role."
+
+
+async def test_team_less_member_can_be_given_a_team_and_cannot_take_a_team_role_without_one(
+    db_client: AsyncClient, admin_csrf: str, structure: Structure
+) -> None:
+    member = (await _create_without_team(db_client, admin_csrf)).json()["member"]
+    path = f"{MEMBERS}/{member['id']}"
+
+    refused = await _post(db_client, admin_csrf, f"{path}/role", {"role_key": "member"})
+    assert refused.status_code == 422
+    assert refused.json()["detail"] == "A Team is required for this role."
+
+    moved = await _post(db_client, admin_csrf, f"{path}/team", {"team_id": str(structure.team_a1)})
+    assert moved.status_code == 200, moved.text
+    assert moved.json()["team_id"] == str(structure.team_a1)
+    assert moved.json()["role_key"] == "event_project_leader"  # non-team role keeps its unit
+
+    now_member = await _post(db_client, admin_csrf, f"{path}/role", {"role_key": "member"})
+    assert now_member.status_code == 200
+    assert now_member.json()["role_unit_id"] == str(structure.team_a1)
+
+
+async def test_team_less_member_can_be_deactivated_and_reactivated_without_a_team(
+    db_client: AsyncClient, admin_csrf: str
+) -> None:
+    member = (await _create_without_team(db_client, admin_csrf)).json()["member"]
+    path = f"{MEMBERS}/{member['id']}"
+    assert (await _post(db_client, admin_csrf, f"{path}/deactivate")).status_code == 200
+    back = await _post(db_client, admin_csrf, f"{path}/reactivate", {"role_key": "pmo_member"})
+    assert back.status_code == 200, back.text
+    assert back.json()["team_id"] is None and back.json()["role_key"] == "pmo_member"

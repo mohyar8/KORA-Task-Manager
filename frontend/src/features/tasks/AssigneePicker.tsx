@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useI18n } from '@/shared/i18n/i18n'
 import { TextField } from '@/shared/ui/Field'
 import { useMemberNames } from '@/features/members/directory'
+import { matchesSearch } from '@/shared/lib/search'
 import styles from './tasks.module.css'
 
 interface Props {
@@ -16,7 +17,7 @@ export function AssigneePicker({ selected, onChange, error, legend }: Props) {
   const { t } = useI18n()
   const names = useMemberNames()
   const [filter, setFilter] = useState('')
-  const shown = names.members.filter((m) => m.full_name.toLowerCase().includes(filter.trim().toLowerCase()))
+  const shown = names.members.filter((m) => matchesSearch(filter, m.full_name))
   const toggle = (id: string) => onChange(selected.includes(id) ? selected.filter((x) => x !== id) : [...selected, id])
 
   return (

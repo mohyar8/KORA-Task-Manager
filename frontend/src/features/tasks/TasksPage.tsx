@@ -20,6 +20,7 @@ import { TaskBoard } from './TaskBoard'
 import { TaskFormModal } from './TaskForm'
 import { isAssignee, isCreator, statusAccent } from './rules'
 import { TASK_STATUSES } from './types'
+import { matchesSearch } from '@/shared/lib/search'
 import styles from './tasks.module.css'
 
 /** /tasks — filters live in the URL (?status=&scope=&mine=1&q=) so a filtered view can be linked. */
@@ -60,7 +61,7 @@ export function TasksPage() {
   const rows = (tasks.data ?? []).filter(
     (task) =>
       (!mine || isCreator(task, viewer) || isAssignee(task, viewer)) &&
-      (!q.trim() || task.title.toLowerCase().includes(q.trim().toLowerCase())),
+      (!q.trim() || matchesSearch(q, task.title)),
   )
 
   const names2 = (ids: string[]) => (ids.length ? ids.map((id) => names.nameOf(id)).join('، ') : '—')

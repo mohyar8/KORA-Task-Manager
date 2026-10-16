@@ -26,7 +26,7 @@ export interface Provisioned {
 export function useProvisionMember() {
   const refresh = useRefresh()
   return useMutation({
-    mutationFn: (body: MemberProfile & RoleFields & { username: string; team_id: string }) =>
+    mutationFn: (body: MemberProfile & RoleFields & { username: string; team_id: string | null }) =>
       http.post<Provisioned>('/admin/members', body),
     onSuccess: refresh,
   })
@@ -56,7 +56,7 @@ export function useDeactivateMember(id: string) {
 export function useReactivateMember(id: string) {
   const refresh = useRefresh()
   return useMutation({
-    mutationFn: (body: RoleFields & { team_id: string }) => http.post<Member>(`/admin/members/${id}/reactivate`, body),
+    mutationFn: (body: RoleFields & { team_id: string | null }) => http.post<Member>(`/admin/members/${id}/reactivate`, body),
     onSuccess: refresh,
   })
 }

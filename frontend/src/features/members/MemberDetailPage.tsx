@@ -15,7 +15,7 @@ import {
 import { ProfileFields, RoleFieldsInput, TeamSelect } from './fields'
 import { TemporaryPasswordDialog } from './TemporaryPasswordDialog'
 import {
-  blankRoleDraft, draftToProfile, profileToDraft, roleFieldsFor, validateProfile, type Member, type ProfileDraft, type RoleDraft,
+  blankRoleDraft, draftToProfile, profileToDraft, roleFieldsFor, roleNeedsTeam, validateProfile, type Member, type ProfileDraft, type RoleDraft,
 } from './types'
 import styles from './members.module.css'
 
@@ -245,9 +245,9 @@ function AccountCard({ member }: { member: Member }) {
               loading={reactivate.isPending}
               onClick={() => {
                 setSubmitted(true)
-                if (!teamId || needsAdmin) return
+                if ((roleNeedsTeam(roleDraft.roleKey) && !teamId) || needsAdmin) return
                 reactivate.mutate(
-                  { ...roleFieldsFor(roleDraft.roleKey, roleDraft.administrationId), team_id: teamId },
+                  { ...roleFieldsFor(roleDraft.roleKey, roleDraft.administrationId), team_id: teamId || null },
                   { onSuccess: () => { setDialog(null); toast(t('members.account.reactivated')) } },
                 )
               }}
@@ -259,7 +259,7 @@ function AccountCard({ member }: { member: Member }) {
       >
         <div className={styles.form}>
           <p>{t('members.account.reactivate.body')}</p>
-          <TeamSelect value={teamId} onChange={setTeamId} error={submitted && !teamId ? t('members.teamRequired') : undefined} />
+          <TeamSelect value={teamId} onChange={setTeamId} required={roleNeedsTeam(roleDraft.roleKey)} error={submitted && roleNeedsTeam(roleDraft.roleKey) && !teamId ? t('members.teamRequired') : undefined} />
           <RoleFieldsInput value={roleDraft} onChange={setRoleDraft} errors={submitted && needsAdmin ? { administration: t('members.administrationRequired') } : {}} />
           <InlineError error={reactivate.error} />
         </div>

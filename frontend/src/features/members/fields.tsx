@@ -53,12 +53,12 @@ export function RoleFieldsInput({ value, onChange, errors }: { value: RoleDraft;
   )
 }
 
-export function TeamSelect({ value, onChange, error }: { value: string; onChange: (id: string) => void; error?: string }) {
+export function TeamSelect({ value, onChange, error, required = true }: { value: string; onChange: (id: string) => void; error?: string; required?: boolean }) {
   const { t } = useI18n()
   const { teams, nameOf, byId } = useUnitDirectory()
   return (
-    <SelectField label={t('members.field.team')} value={value} onChange={(e) => onChange(e.target.value)} error={error} required>
-      <option value="">{t('members.pickTeam')}</option>
+    <SelectField label={t('members.field.team')} value={value} onChange={(e) => onChange(e.target.value)} error={error} required={required}>
+      <option value="">{required ? t('members.pickTeam') : t('members.placement.none')}</option>
       {teams.map((u) => {
         const parent = nameOf(byId.get(u.id)?.parentId)
         return <option key={u.id} value={u.id}>{parent ? `${u.name} — ${parent}` : u.name}</option>

@@ -62,6 +62,9 @@ export const isValidEmail = (v: string) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v.t
 
 export const USERNAME_PATTERN = /^[a-z0-9._-]{3,64}$/
 
+/** Team Leader and Member are held at a Team; the other roles (leadership, PMO, Administration Manager) need none. */
+export const roleNeedsTeam = (roleKey: RoleKey) => roleKey === 'team_leader' || roleKey === 'member'
+
 /** `administration_id` is required for administration_manager and forbidden for every other role. */
 export function roleFieldsFor(roleKey: RoleKey, administrationId: string): RoleFields {
   return { role_key: roleKey, administration_id: roleKey === 'administration_manager' ? administrationId : null }

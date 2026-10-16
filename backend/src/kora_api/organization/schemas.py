@@ -87,7 +87,9 @@ class RoleFields(BaseModel):
 
 class CreateMemberRequest(MemberProfileFields, RoleFields):
     username: Annotated[str, StringConstraints(min_length=1, max_length=256)]
-    team_id: uuid.UUID
+    # Required for Team Leader and Member; optional for the roles held at KORA, the PMO or an
+    # Administration.
+    team_id: uuid.UUID | None = None
 
 
 class ChangeTeamRequest(BaseModel):
@@ -95,7 +97,7 @@ class ChangeTeamRequest(BaseModel):
 
 
 class ReactivateMemberRequest(RoleFields):
-    team_id: uuid.UUID
+    team_id: uuid.UUID | None = None
 
 
 class MemberResponse(BaseModel):

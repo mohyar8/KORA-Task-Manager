@@ -9,6 +9,7 @@ import { PageHeader } from '@/shared/ui/Layout'
 import { initialOf } from '@/shared/lib/initial'
 import { Avatar, Row, RowList } from '@/shared/ui/RowList'
 import { Modal } from '@/shared/ui/Modal'
+import { matchesSearch } from '@/shared/lib/search'
 import { roleLabel } from '@/features/access/labels'
 import { ROLE_KEYS } from '@/features/access/types'
 import { useUnitDirectory } from '@/features/organization/directory'
@@ -16,7 +17,7 @@ import { useMembers, useProvisionMember } from './api'
 import { ProfileFields, RoleFieldsInput, TeamSelect } from './fields'
 import { TemporaryPasswordDialog } from './TemporaryPasswordDialog'
 import {
-  blankRoleDraft, draftToProfile, emptyProfileDraft, roleFieldsFor, USERNAME_PATTERN, validateProfile, type ProfileDraft, type RoleDraft,
+  blankRoleDraft, draftToProfile, emptyProfileDraft, roleFieldsFor, USERNAME_PATTERN, roleNeedsTeam, validateProfile, type ProfileDraft, type RoleDraft,
 } from './types'
 import styles from './members.module.css'
 
@@ -44,7 +45,7 @@ export function MembersPage() {
     const q = search.trim().toLowerCase()
     return (members.data ?? []).filter(
       (m) =>
-        (!q || [m.full_name, m.username, m.university_id ?? ''].some((v) => v.toLowerCase().includes(q))) &&
+        (!q || matchesSearch(q, m.full_name, m.username, m.university_id)) &&
         (!status || m.status === status) &&
         (!team || m.team_id === team) &&
         (!role || m.role_key === role),
@@ -65,7 +66,7 @@ export function MembersPage() {
   const errors = {
     ...profileErrors,
     ...(submitted && !USERNAME_PATTERN.test(username) ? { username: t('members.usernameInvalid') } : {}),
-    ...(submitted && !teamId ? { team: t('members.teamRequired') } : {}),
+    ...(submitted && roleNeedsTeam(roleDraft.roleKey) && !teamId ? { team: t('members.teamRequired') } : {}),
     ...(submitted && roleDraft.roleKey === 'administration_manager' && !roleDraft.administrationId ? { administration: t('members.administrationRequired') } : {}),
     // field messages from a 422 validation list override nothing client-side but fill gaps
     ...Object.fromEntries(Object.entries(fieldErrors(provision.error)).filter(([k]) => !(k in profileErrors))),
@@ -73,7 +74,7 @@ export function MembersPage() {
   const clientInvalid =
     Object.keys(profileErrors).length > 0 ||
     !USERNAME_PATTERN.test(username) ||
-    !teamId ||
+    (roleNeedsTeam(roleDraft.roleKey) && !teamId) ||
     (roleDraft.roleKey === 'administration_manager' && !roleDraft.administrationId)
 
   const submit = () => {
@@ -81,7 +82,7 @@ export function MembersPage() {
     if (clientInvalid) return
     const p = draftToProfile(profile)
     provision.mutate(
-      { ...p, ...roleFieldsFor(roleDraft.roleKey, roleDraft.administrationId), username, team_id: teamId },
+      { ...p, ...roleFieldsFor(roleDraft.roleKey, roleDraft.administrationId), username, team_id: teamId || null },
       {
         onSuccess: (res) => {
           setCreating(false)
@@ -177,7 +178,7 @@ export function MembersPage() {
             dir="ltr"
             required
           />
-          <TeamSelect value={teamId} onChange={setTeamId} error={errors.team} />
+          <TeamSelect value={teamId} onChange={setTeamId} error={errors.team} required={roleNeedsTeam(roleDraft.roleKey)} />
           <RoleFieldsInput value={roleDraft} onChange={setRoleDraft} errors={errors} />
           <InlineError error={provision.error} />
         </div>

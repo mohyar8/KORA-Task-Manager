@@ -1,7 +1,9 @@
 """Member lifecycle (System Admin only). Every operation is a single transaction.
 
-Invariants: an active Member has exactly one open Team placement and one open role assignment;
-Team Leader / Member roles are always held at the Member's current Team.
+Invariants: an active Member has exactly one open role assignment and at most one open Team
+placement. Team Leader / Member roles require a Team and are always held at the Member's current
+Team; the other roles (Event/Project Leader, Deputy, PMO, Administration Manager) are held at
+KORA / the PMO / an Administration and may be held without any Team.
 """
 
 import uuid
@@ -107,11 +109,12 @@ async def create_member(
     *,
     username: str,
     profile: MemberProfile,
-    team_id: uuid.UUID,
+    team_id: uuid.UUID | None,
     role: RoleChoice,
 ) -> tuple[MemberView, str]:
-    """Create a Member, its account (temporary password), Team placement and role."""
-    await _require_active_team(db, team_id)
+    """Create a Member, its account (temporary password), optional Team placement and role."""
+    if team_id is not None:
+        await _require_active_team(db, team_id)
     role_unit_id = await _role_unit(db, role, team_id)
     account, temporary_password = await access_service.create_account_with_temporary_password(
         db, username
@@ -119,14 +122,15 @@ async def create_member(
     member = Member(account_id=account.id, status=MemberStatus.ACTIVE, **vars(profile))
     db.add(member)
     await db.flush()
-    _open_team_placement(db, member.id, team_id, actor_id)
+    if team_id is not None:
+        _open_team_placement(db, member.id, team_id, actor_id)
     _open_role(db, member.id, role.role_key, role_unit_id, actor_id)
     audit.record(
         db,
         audit_actions.MEMBER_PROVISIONED,
         actor_account_id=actor_id,
         resource_id=member.id,
-        scope_unit_id=team_id,
+        scope_unit_id=team_id or role_unit_id,
         after={
             "account_id": account.id,
             "status": member.status,
@@ -172,12 +176,13 @@ async def change_team(
     await _require_active_team(db, team_id)
     placement = await _open_placement(db, member_id)
     assignment = await _open_assignment(db, member_id)
-    assert placement is not None and assignment is not None  # active-Member invariant
-    if placement.team_id == team_id:
+    assert assignment is not None  # active-Member invariant
+    if placement is not None and placement.team_id == team_id:
         raise InvalidMemberChangeError("The Member is already in that Team.")
 
     role_follows_team = ROLES[RoleKey(assignment.role_key)][1] == UnitKind.TEAM
-    _close(placement, actor_id)
+    if placement is not None:
+        _close(placement, actor_id)
     if role_follows_team:
         _close(assignment, actor_id)
     await db.flush()
@@ -192,7 +197,7 @@ async def change_team(
         resource_id=member_id,
         scope_unit_id=team_id,
         before={
-            "team_id": placement.team_id,
+            "team_id": placement.team_id if placement else None,
             "role_key": assignment.role_key,
             "role_unit_id": assignment.unit_id,
         },
@@ -212,8 +217,8 @@ async def change_role(
     member = await _lock_active_member(db, member_id)
     placement = await _open_placement(db, member_id)
     assignment = await _open_assignment(db, member_id)
-    assert placement is not None and assignment is not None  # active-Member invariant
-    role_unit_id = await _role_unit(db, role, placement.team_id)
+    assert assignment is not None  # active-Member invariant
+    role_unit_id = await _role_unit(db, role, placement.team_id if placement else None)
     if assignment.role_key == role.role_key and assignment.unit_id == role_unit_id:
         raise InvalidMemberChangeError("The Member already holds that role.")
 
@@ -226,7 +231,7 @@ async def change_role(
         audit_actions.MEMBER_ROLE_CHANGED,
         actor_account_id=actor_id,
         resource_id=member_id,
-        scope_unit_id=placement.team_id,
+        scope_unit_id=placement.team_id if placement else role_unit_id,
         before={"role_key": assignment.role_key, "role_unit_id": assignment.unit_id},
         after={"role_key": role.role_key, "role_unit_id": role_unit_id},
     )
@@ -282,25 +287,27 @@ async def reactivate_member(
     actor_id: uuid.UUID,
     member_id: uuid.UUID,
     *,
-    team_id: uuid.UUID,
+    team_id: uuid.UUID | None,
     role: RoleChoice,
 ) -> MemberView:
-    """Reactivate with a new Team placement and role assignment."""
+    """Reactivate with a new role assignment and, when the role needs one, a Team placement."""
     member = await _lock_member(db, member_id)
     if member.status != MemberStatus.DEACTIVATED:
         raise MemberStateError("The Member is already active.")
-    await _require_active_team(db, team_id)
+    if team_id is not None:
+        await _require_active_team(db, team_id)
     role_unit_id = await _role_unit(db, role, team_id)
     await access_service.reactivate_account(db, member.account_id)
     member.status = MemberStatus.ACTIVE
-    _open_team_placement(db, member_id, team_id, actor_id)
+    if team_id is not None:
+        _open_team_placement(db, member_id, team_id, actor_id)
     _open_role(db, member_id, role.role_key, role_unit_id, actor_id)
     audit.record(
         db,
         audit_actions.MEMBER_REACTIVATED,
         actor_account_id=actor_id,
         resource_id=member_id,
-        scope_unit_id=team_id,
+        scope_unit_id=team_id or role_unit_id,
         before={
             "account_id": member.account_id,
             "status": MemberStatus.DEACTIVATED,
@@ -353,7 +360,7 @@ async def _require_active_team(db: AsyncSession, team_id: uuid.UUID) -> None:
         raise InvalidMemberChangeError("Team not found or not active.")
 
 
-async def _role_unit(db: AsyncSession, role: RoleChoice, team_id: uuid.UUID) -> uuid.UUID:
+async def _role_unit(db: AsyncSession, role: RoleChoice, team_id: uuid.UUID | None) -> uuid.UUID:
     """The scope unit for a role, enforcing which unit each role may be held at."""
     unit_kind = ROLES[role.role_key][1]
     if unit_kind != UnitKind.ADMINISTRATION and role.administration_id is not None:
@@ -364,6 +371,8 @@ async def _role_unit(db: AsyncSession, role: RoleChoice, team_id: uuid.UUID) -> 
         case UnitKind.PMO:
             return PMO_UNIT_ID
         case UnitKind.TEAM:
+            if team_id is None:
+                raise InvalidMemberChangeError("A Team is required for this role.")
             return team_id
         case UnitKind.ADMINISTRATION:
             if role.administration_id is None:
