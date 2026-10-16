@@ -290,3 +290,8 @@ To be scoped. Candidates include reminders, task workspaces and analytics, and t
 - `AccountResponse.member_id` (via `OrganizationFacts.member_id_for`, so `access` still does not import `organization`) on `/auth/me`, sign-in and change-password responses; null for non-Member accounts.
 - `GET /api/v1/organization/members` (`organization/queries.member_directory`, `DirectoryMemberResponse`): active Members in the scope of any operational permission the caller holds, plus the caller; names and placement only. No new permission was added. Tests: `tests/organization/test_directory.py`. Contract updated (81 operations; frontend copy `frontend/docs/api/API_CONTRACT.md` §6, §8.1a).
 - Known limitation: deactivated or out-of-scope Members are not resolvable by id.
+
+## 2026-10-16 — team-less Members and Event Leadership assignment
+- Members holding roles that are not Team-level (Event Leader, Deputy, PMO Leader/Member, Administration Manager) can be provisioned/reactivated without a Team (`team_id` optional; Team Leader/Member still require one). Tests in `tests/organization/test_members.py`.
+- Tasks: the Event Leader and Deputy are eligible assignees in any scope (`organization.queries.member_within_task_scope`, `is_event_leadership`); only leaders/managers may assign them (`tasks.service.LEADERSHIP_ASSIGNERS`). `MemberPosition.role_key` added. The Member lookup lists them for every caller with a scope. Tests: `tests/tasks/test_event_leadership.py`.
+- Production data (Neon) was seeded with a one-off import of members and historical tasks (not part of the codebase).

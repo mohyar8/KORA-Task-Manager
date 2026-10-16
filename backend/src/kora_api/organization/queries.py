@@ -12,7 +12,7 @@ from kora_api.access.models import AccountStatus, UserAccount
 from kora_api.access.org_facts import UnitInfo
 from kora_api.access.permissions import Permission
 from kora_api.core import clock
-from kora_api.organization.constants import MemberStatus
+from kora_api.organization.constants import KORA_UNIT_ID, MemberStatus
 from kora_api.organization.facts import SqlOrganizationFacts
 from kora_api.organization.models import Member, MemberTeamPlacement, RoleAssignment
 
@@ -28,11 +28,18 @@ class MemberPosition:
     active: bool
     team_id: uuid.UUID | None
     role_unit_id: uuid.UUID | None
+    role_key: str | None = None
 
 
 def _positions_query():
     return (
-        select(Member, UserAccount.status, MemberTeamPlacement.team_id, RoleAssignment.unit_id)
+        select(
+            Member,
+            UserAccount.status,
+            MemberTeamPlacement.team_id,
+            RoleAssignment.unit_id,
+            RoleAssignment.role_key,
+        )
         .join(UserAccount, UserAccount.id == Member.account_id)
         .outerjoin(
             MemberTeamPlacement,
@@ -53,6 +60,7 @@ def _position(
     account_status: AccountStatus,
     team_id: uuid.UUID | None,
     role_unit_id: uuid.UUID | None,
+    role_key: str | None = None,
 ) -> MemberPosition:
     return MemberPosition(
         member_id=member.id,
@@ -61,6 +69,7 @@ def _position(
         active=member.status == MemberStatus.ACTIVE and account_status == AccountStatus.ACTIVE,
         team_id=team_id,
         role_unit_id=role_unit_id,
+        role_key=str(role_key) if role_key else None,
     )
 
 
@@ -76,7 +85,10 @@ async def member_positions(
     if not ids:
         return {}
     rows = await db.execute(_positions_query().where(Member.id.in_(ids)))
-    return {member.id: _position(member, status, team, role) for member, status, team, role in rows}
+    return {
+        member.id: _position(member, status, team, unit, role)
+        for member, status, team, unit, role in rows
+    }
 
 
 async def current_units(db: AsyncSession) -> Mapping[uuid.UUID, UnitInfo]:
@@ -92,6 +104,18 @@ def unit_chain(unit_id: uuid.UUID | None, units: Mapping[uuid.UUID, UnitInfo]) -
         chain.append(current)
         current = units[current].parent_id
     return chain
+
+
+def is_event_leadership(position: MemberPosition) -> bool:
+    """The Event Leader and Deputy sit directly under KORA, with no Team."""
+    return position.active and position.role_unit_id == KORA_UNIT_ID
+
+
+def member_within_task_scope(
+    position: MemberPosition, scope_unit_id: uuid.UUID, units: Mapping[uuid.UUID, UnitInfo]
+) -> bool:
+    """Task eligibility: in scope, or the Event Leader / Deputy, who can be given work anywhere."""
+    return member_within_scope(position, scope_unit_id, units) or is_event_leadership(position)
 
 
 def member_within_scope(
@@ -139,22 +163,23 @@ async def member_directory(
     for permission in DIRECTORY_PERMISSIONS:
         scope |= snapshot.units_with(permission)
     units = await current_units(db)
-    rows = await db.execute(
-        _positions_query().add_columns(RoleAssignment.role_key).order_by(Member.full_name)
-    )
+    rows = await db.execute(_positions_query().order_by(Member.full_name))
     entries: list[DirectoryEntry] = []
     for member, account_status, team_id, role_unit_id, role_key in rows:
-        position = _position(member, account_status, team_id, role_unit_id)
+        position = _position(member, account_status, team_id, role_unit_id, role_key)
         if not position.active:
             continue
         reach = set(unit_chain(team_id, units)) | set(unit_chain(role_unit_id, units))
-        if member.account_id == account_id or reach & scope:
+        # The Event Leader and Deputy are names anyone who works on tasks may need (they can be
+        # assigned work from any scope), so they are listed for every caller with a scope.
+        listed = is_event_leadership(position) and bool(scope)
+        if member.account_id == account_id or reach & scope or listed:
             entries.append(
                 DirectoryEntry(
                     member_id=member.id,
                     full_name=member.full_name,
                     team_id=team_id,
-                    role_key=str(role_key) if role_key else None,
+                    role_key=position.role_key,
                 )
             )
     return entries

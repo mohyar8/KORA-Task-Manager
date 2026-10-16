@@ -1,4 +1,5 @@
 import { Link } from 'react-router'
+import { useDisplayName } from '@/features/members/directory'
 import { Bell, ChevronLeft } from 'lucide-react'
 import { useI18n } from '@/shared/i18n/i18n'
 import { canAnywhere } from '@/features/auth/permissions'
@@ -14,6 +15,7 @@ export function HomePage() {
   const { t } = useI18n()
   const { account, access } = useSession()
   const unread = useUnreadCount()
+  const displayName = useDisplayName()
   const hour = new Date().getHours()
   const greeting = hour < 12 ? t('home.greeting.morning') : hour < 18 ? t('home.greeting.afternoon') : t('home.greeting.evening')
   const quick = visibleNavItems(access, !!account?.is_system_admin).filter((i) => i.to !== '/')
@@ -24,7 +26,7 @@ export function HomePage() {
       <section className={styles.hero}>
         <div className={styles.heroText}>
           <p className={styles.heroKicker}>{greeting}</p>
-          <p className={styles.heroTitle} dir="auto">{account?.username}</p>
+          <p className={styles.heroTitle} dir="auto">{displayName}</p>
           <p className={styles.heroSub}>{t('home.greeting.sub')}</p>
         </div>
         <Link to="/notifications" className={`${styles.bellCard} ${unread > 0 ? styles.bellAlert : ''}`}>

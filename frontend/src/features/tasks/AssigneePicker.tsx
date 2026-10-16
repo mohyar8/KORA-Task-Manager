@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useI18n } from '@/shared/i18n/i18n'
 import { TextField } from '@/shared/ui/Field'
 import { useMemberNames } from '@/features/members/directory'
+import { roleLabel } from '@/features/access/labels'
 import { matchesSearch } from '@/shared/lib/search'
 import styles from './tasks.module.css'
 
@@ -18,13 +19,37 @@ export function AssigneePicker({ selected, onChange, error, legend }: Props) {
   const names = useMemberNames()
   const [filter, setFilter] = useState('')
   const shown = names.members.filter((m) => matchesSearch(filter, m.full_name))
+  const top = names.leadership.filter((m) => matchesSearch(filter, m.full_name))
   const toggle = (id: string) => onChange(selected.includes(id) ? selected.filter((x) => x !== id) : [...selected, id])
+
+  const allShown = shown.length > 0 && shown.every((m) => selected.includes(m.id))
+  const toggleAll = () => {
+    const ids = shown.map((m) => m.id)
+    onChange(allShown ? selected.filter((x) => !ids.includes(x)) : [...new Set([...selected, ...ids])])
+  }
 
   return (
     <fieldset className={styles.assigneeBox}>
       <legend>{legend ?? t('tasks.field.assignees')} *</legend>
       <p className={styles.hint}>{t('tasks.assignees.hint')}</p>
       <TextField label={t('members.search')} type="search" value={filter} onChange={(e) => setFilter(e.target.value)} />
+      {shown.length > 1 && (
+        <button type="button" className={styles.pickAll} onClick={toggleAll}>
+          {allShown ? t('tasks.assignees.clear') : t('tasks.assignees.all')}
+        </button>
+      )}
+      {top.length > 0 && (
+        <ul className={styles.topList} aria-label={t('tasks.assignees.leadership')}>
+          {top.map((m) => (
+            <li key={m.id}>
+              <label className={`${styles.pick} ${styles.pickTop}`}>
+                <input type="checkbox" checked={selected.includes(m.id)} onChange={() => toggle(m.id)} /> {m.full_name}
+                {m.role_key && <span className={styles.topBadge}>{roleLabel(t, m.role_key)}</span>}
+              </label>
+            </li>
+          ))}
+        </ul>
+      )}
       {shown.length === 0 ? (
         <p className={styles.hint}>{t('tasks.noMembers')}</p>
       ) : (

@@ -133,7 +133,7 @@ Each default applies at the role's unit: KORA for the Event/Project Leader and D
 System Admin is a separate grant, not a role. It authorizes only `/api/v1/admin/*`. It gives **no** access to units, tasks, announcements, events or notifications unless the admin gives an account (possibly their own) an explicit override. The final active System Admin can be neither deactivated nor revoked.
 
 ### 3.5 "Within scope" (Members)
-A Member is within a unit's scope if their current Team placement **or** their role's unit is that unit or lies beneath it. This rule decides who is eligible as an assignee, recipient or invitee.
+A Member is within a unit's scope if their current Team placement **or** their role's unit is that unit or lies beneath it. This rule decides who is eligible as an assignee, recipient or invitee. **Exception (tasks only):** the Event Leader and Deputy (role unit = KORA) are eligible task assignees in any scope; only Team Leaders, Administration Managers, the PMO Leader and the Event Leader/Deputy may assign them (others get **422** `"Only team leaders and managers may assign the Event Leader or Deputy."`).
 
 ---
 
@@ -266,7 +266,7 @@ Rules (422 = structure violation, 409 = state conflict):
 - Permission is checked **before** existence, so an unknown `unit_id` returns **403**, not 404.
 
 ### 8.1a Member lookup (`GET /api/v1/organization/members`) — CurrentAccess
-The lookup for pickers and names (assignees, recipients, invitees, task creators). **200** `DirectoryMemberResponse[]` ordered by `full_name`: `id` (the Member id used everywhere else), `full_name`, `team_id|null`, `role_key|null`. **No contact or academic data.**
+The lookup for pickers and names (assignees, recipients, invitees, task creators). **200** `DirectoryMemberResponse[]` ordered by `full_name`: `id` (the Member id used everywhere else), `full_name`, `team_id|null`, `role_key|null`. **No contact or academic data.** Every caller with an operational scope also sees the Event Leader and Deputy (names only), because they can be assigned tasks from any scope.
 - **Who is listed:** active Members (Member and account both active) whose Team or role unit is within the scope of **any unit where the caller holds one of `task.view`, `task.create`, `task.manage`, `announcement.publish`, `announcement.manage`, `calendar.create`, `calendar.manage`, `organization.manage`**, plus the caller's own Member record. The normal role defaults therefore show a Team Member their own Team, an Administration Manager their Administration, and the Event/Project Leader everyone; overrides expand or restrict it like any other scoped permission.
 - **Not listed:** deactivated Members and Members outside the caller's scope. A Member id seen elsewhere (e.g. a former assignee in task history) may therefore be missing from the lookup; clients must show a neutral placeholder rather than fail.
 - The list is unpaginated. It is not the System Admin list (`/admin/members`), which keeps all profile data.
@@ -280,12 +280,12 @@ The lookup for pickers and names (assignees, recipients, invitees, task creators
 |---|---|---|---|
 | `GET /admin/members` | — | 200 `MemberResponse[]` (by `full_name`) | — |
 | `GET /admin/members/{member_id}` | — | 200 | 404 |
-| `POST /admin/members` | `CreateMemberRequest` = profile + RoleFields + `username` (1–256) + `team_id` | 201 `{member: MemberResponse, temporary_password: string}` | 422 invalid username or invalid team/role; 409 `"That username is already in use."` |
+| `POST /admin/members` | `CreateMemberRequest` = profile + RoleFields + `username` (1–256) + `team_id` (optional; required only for Team Leader and Member roles, `422 "A Team is required for this role."`) | 201 `{member: MemberResponse, temporary_password: string}` | 422 invalid username or invalid team/role; 409 `"That username is already in use."` |
 | `PUT /admin/members/{member_id}` | `MemberProfileFields` (**full replacement** of the profile; omitted optional fields become null) | 200 | 404 |
 | `POST /admin/members/{member_id}/team` | `{team_id}` | 200 | 404; 409 deactivated; 422 inactive or unknown Team, or the same Team |
 | `POST /admin/members/{member_id}/role` | `RoleFields` | 200 | 404; 409 deactivated; 422 invalid role or unit, or the same role |
 | `POST /admin/members/{member_id}/deactivate` | — | 200 | 404; 409 already deactivated; 409 `"The final active System Admin cannot be deactivated."` |
-| `POST /admin/members/{member_id}/reactivate` | `ReactivateMemberRequest` = RoleFields + `team_id` | 200 | 404; 409 already active; 422 invalid team or role |
+| `POST /admin/members/{member_id}/reactivate` | `ReactivateMemberRequest` = RoleFields + `team_id` (optional, same rule) | 200 | 404; 409 already active; 422 invalid team or role |
 | `POST /admin/members/{member_id}/reset-password` | — | 200 `{temporary_password}` | 404; 409 deactivated |
 
 Behavior:

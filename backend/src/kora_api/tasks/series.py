@@ -105,9 +105,11 @@ async def create_series(
     due_times = occurrence_due_times(fields.due_at, ends_at)
     await service.require_creator(db, actor, scope_unit_id)
     units = await org.current_units(db)
-    await service.require_eligible(db, assignee_member_ids, scope_unit_id, units)
+    await service.require_eligible(db, assignee_member_ids, scope_unit_id, units, actor.member)
     for template in subtasks:
-        await service.require_eligible(db, template.assignee_member_ids, scope_unit_id, units)
+        await service.require_eligible(
+            db, template.assignee_member_ids, scope_unit_id, units, actor.member
+        )
 
     assert actor.member_id is not None
     subtasks = [replace(template, key=uuid.uuid4()) for template in subtasks]
@@ -213,12 +215,14 @@ async def update_series(
     previous = _series_state(series)
     units = await org.current_units(db)
     if assignee_member_ids is not None:
-        await service.require_eligible(db, assignee_member_ids, series.scope_unit_id, units)
+        await service.require_eligible(
+            db, assignee_member_ids, series.scope_unit_id, units, actor.member
+        )
         series.assignee_member_ids = list(assignee_member_ids)
     templates: list[SubtaskTemplate] | None = None
     previous_templates = list(series.subtask_templates)
     if subtasks is not None:
-        templates = await _replace_templates(db, series, subtasks, units)
+        templates = await _replace_templates(db, series, subtasks, units, actor.member)
     content_changed = series.subtask_templates != previous_templates or any(
         getattr(series, name) != changes[name]
         for name in ("title", "description", "priority")
@@ -321,7 +325,9 @@ async def move_series(
 
     def eligible(member_id: uuid.UUID) -> bool:
         position = positions.get(member_id)
-        return position is not None and org.member_within_scope(position, destination_id, units)
+        return position is not None and org.member_within_task_scope(
+            position, destination_id, units
+        )
 
     source_id = series.scope_unit_id
     series.scope_unit_id = destination_id
@@ -374,6 +380,7 @@ async def _replace_templates(
     series: TaskSeries,
     subtasks: Sequence[SubtaskTemplate],
     units: Mapping[uuid.UUID, UnitInfo],
+    assigner: org.MemberPosition | None = None,
 ) -> list[SubtaskTemplate]:
     known = {t.key for t in map(SubtaskTemplate.from_json, series.subtask_templates) if t.key}
     keys = [t.key for t in subtasks if t.key is not None]
@@ -381,7 +388,7 @@ async def _replace_templates(
         raise InvalidTaskError("Unknown or repeated subtask template key.")
     for template in subtasks:
         await service.require_eligible(
-            db, template.assignee_member_ids, series.scope_unit_id, units
+            db, template.assignee_member_ids, series.scope_unit_id, units, assigner
         )
     templates = [t if t.key else replace(t, key=uuid.uuid4()) for t in subtasks]
     series.subtask_templates = [t.as_json() for t in templates]
@@ -528,7 +535,8 @@ async def _notify_series_updated(
     eligible = {
         positions[m].account_id
         for m in members - set(removed_member_ids)
-        if m in positions and org.member_within_scope(positions[m], series.scope_unit_id, units)
+        if m in positions
+        and org.member_within_task_scope(positions[m], series.scope_unit_id, units)
     }
     recipients = ({series.created_by_account_id} | eligible) - removed_accounts
     await service.notify_series_update(db, series, recipients, actor_account_id)
@@ -618,7 +626,7 @@ async def _sync_assignees(
     positions = await org.member_positions(db, wanted - current)
     for member_id in wanted - current:
         position = positions.get(member_id)
-        if position is None or not org.member_within_scope(
+        if position is None or not org.member_within_task_scope(
             position, occurrence.scope_unit_id, units
         ):
             # e.g. the Member became inactive, or the occurrence moved out of their scope.

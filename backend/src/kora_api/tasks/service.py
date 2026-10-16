@@ -245,7 +245,7 @@ async def create_task(
 ) -> TaskView:
     await require_creator(db, actor, scope_unit_id)
     units = await org.current_units(db)
-    await require_eligible(db, assignee_member_ids, scope_unit_id, units)
+    await require_eligible(db, assignee_member_ids, scope_unit_id, units, actor.member)
     view = await insert_task(
         db,
         scope_unit_id=scope_unit_id,
@@ -271,7 +271,7 @@ async def create_subtask(
         raise InvalidTaskError("Subtasks cannot have subtasks.")
     await require_creator(db, actor, parent.scope_unit_id)
     units = await org.current_units(db)
-    await require_eligible(db, assignee_member_ids, parent.scope_unit_id, units)
+    await require_eligible(db, assignee_member_ids, parent.scope_unit_id, units, actor.member)
     view = await insert_task(
         db,
         scope_unit_id=parent.scope_unit_id,
@@ -314,11 +314,18 @@ async def require_creator(db: AsyncSession, actor: TaskActor, scope_unit_id: uui
         raise InvalidTaskError("Scope unit not found or not active.")
 
 
+# Roles that may give the Event Leader or Deputy a task: managers and leaders, not plain Members.
+LEADERSHIP_ASSIGNERS = frozenset(
+    {"team_leader", "administration_manager", "pmo_leader", "event_project_leader", "deputy_leader"}
+)
+
+
 async def require_eligible(
     db: AsyncSession,
     member_ids: Sequence[uuid.UUID],
     scope_unit_id: uuid.UUID,
     units: Mapping[uuid.UUID, UnitInfo],
+    assigner: org.MemberPosition | None = None,
 ) -> None:
     if not member_ids:
         raise InvalidTaskError("A task needs at least one assignee.")
@@ -328,11 +335,20 @@ async def require_eligible(
     invalid = [
         str(m)
         for m in member_ids
-        if m not in positions or not org.member_within_scope(positions[m], scope_unit_id, units)
+        if m not in positions
+        or not org.member_within_task_scope(positions[m], scope_unit_id, units)
     ]
     if invalid:
         raise InvalidTaskError(
             f"Assignees must be active Members within the task scope: {', '.join(invalid)}."
+        )
+    if (
+        assigner is not None
+        and assigner.role_key not in LEADERSHIP_ASSIGNERS
+        and any(org.is_event_leadership(positions[m]) for m in member_ids)
+    ):
+        raise InvalidTaskError(
+            "Only team leaders and managers may assign the Event Leader or Deputy."
         )
 
 
@@ -540,7 +556,9 @@ async def add_assignee(
         raise _deny(MANAGE, view.task)
     if member_id in view.assignee_member_ids:
         raise TaskConflictError("Already an assignee.")
-    await require_eligible(db, [member_id], view.task.scope_unit_id, await org.current_units(db))
+    await require_eligible(
+        db, [member_id], view.task.scope_unit_id, await org.current_units(db), actor.member
+    )
     await open_assignment(db, task_id, member_id, actor.account_id)
     record(db, task_id, EventKind.ASSIGNEE_ADDED, actor.account_id, member_id=member_id)
     audit.record(
@@ -651,7 +669,9 @@ async def remove_ineligible_assignees(
     removed: set[uuid.UUID] = set()
     for member_id in candidates:
         position = positions.get(member_id)
-        if position is not None and org.member_within_scope(position, task.scope_unit_id, units):
+        if position is not None and org.member_within_task_scope(
+            position, task.scope_unit_id, units
+        ):
             continue
         reason = (
             AssignmentEndReason.MEMBER_INACTIVE

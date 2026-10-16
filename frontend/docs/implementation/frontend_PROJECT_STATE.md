@@ -188,3 +188,9 @@ Tests: 100 pass; all main routes re-checked at 375 px, no overflow.
 - Live local backend: `docker compose up -d postgres` (backend/), `uv run alembic upgrade head`, bootstrap admin `root` created in the dev DB (password changed during testing), seeded Operations/Team A and members tl.sara, omar, nora. Cookies/CSRF through the Vite proxy verified live.
 - G9: Recruitment & Selection URL not supplied. G11: Ghroob web-serving licence unconfirmed.
 - Nothing is committed to git yet (the user has not asked for a commit).
+
+## 2026-10-16 — follow-ups
+- Member form and reactivate dialog: Team is required only for Team Leader/Member (`roleNeedsTeam`).
+- Search (`shared/lib/search.ts`): every typed word must match, in any order, with Arabic letter normalization; used by members, assignee picker and tasks.
+- Notification bell (and the Home bell card) glow/ring while there are unread items; SVG favicon from `public/favicon.svg`.
+- Assignee picker: "Select all" (shown members only) and a highlighted block for the Event Leader and Deputy, visible only to leaders/managers and never included in Select all (`useMemberNames().leadership`).

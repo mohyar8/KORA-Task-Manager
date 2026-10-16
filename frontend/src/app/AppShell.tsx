@@ -5,6 +5,7 @@ import { useI18n } from '@/shared/i18n/i18n'
 import { Modal } from '@/shared/ui/Modal'
 import lockup from '@/shared/brand/kora-lockup-white.png'
 import ballMark from '@/shared/brand/kora-lockup-ball.png'
+import { useDisplayName } from '@/features/members/directory'
 import { NotificationBell } from '@/features/notifications/NotificationBell'
 import { useSession } from '@/features/auth/session'
 import { visibleNavItems } from './nav'
@@ -34,7 +35,8 @@ export function AppShell() {
       <span className={styles.label}>{t(item.labelKey)}</span>
     </NavLink>
   )
-  const initial = (account?.username ?? '?').charAt(0).toUpperCase()
+  const displayName = useDisplayName()
+  const initial = (displayName || '?').charAt(0).toUpperCase()
 
   return (
     <div className={styles.shell}>
@@ -59,7 +61,7 @@ export function AppShell() {
             </button>
             <NavLink to="/account" className={styles.avatarLink} aria-label={t('nav.account')}>
               <span className={styles.avatar} aria-hidden="true">{initial}</span>
-              <span className={styles.userName} dir="ltr">{account?.username}</span>
+              <span className={styles.userName} dir="auto">{displayName}</span>
             </NavLink>
           </div>
         </div>
