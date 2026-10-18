@@ -27,3 +27,8 @@
 .footer { text-align: center; font-weight: 700; color: var(--kora-navy); margin: 0; }
 @media (max-width: 520px) { .row { grid-template-columns: 38px 1fr auto; padding: var(--space-3) var(--space-4); gap: var(--space-3); } .ball { inline-size: 110px; } .ribbon { padding-inline: var(--space-5); } }
 @media (prefers-reduced-motion: reduce) { .ball, .row { animation: none; } .bar i { transition: none; } }
+
+.arena { position: relative; overflow: hidden; padding: var(--space-4); border-radius: var(--radius-large); background: linear-gradient(180deg, color-mix(in srgb, var(--kora-fuchsia) 12%, white), color-mix(in srgb, var(--kora-navy) 10%, white)); border: 1px solid color-mix(in srgb, var(--kora-fuchsia) 18%, white); }
+.arena::before { content: ''; position: absolute; inset: 0; background: url('@/shared/brand/pattern-9.svg') center / 320px repeat; opacity: 0.08; pointer-events: none; }
+.arena > * { position: relative; }
+@media (max-width: 520px) { .arena { padding: var(--space-3); } }

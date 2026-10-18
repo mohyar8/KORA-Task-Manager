@@ -77,9 +77,8 @@ export function LeaguePage() {
       </li>
     ))
 
-  const list = editing
-    ? [...league.standings].sort((a, b) => (draft[b.team_id] ?? 0) - (draft[a.team_id] ?? 0) || a.team_name.localeCompare(b.team_name)).map((s, i) => ({ ...s, rank: i + 1 }))
-    : league.standings
+  // The order and ranks stay as saved while editing; they change only after Save.
+  const list = league.standings
 
   return (
     <div className={styles.page}>
@@ -113,7 +112,9 @@ export function LeaguePage() {
       {list.length === 0 ? (
         <EmptyState title={t('league.empty')} />
       ) : (
-        <ol className={styles.table} aria-label={t('league.title')}>{rowsFor(list)}</ol>
+        <div className={styles.arena}>
+          <ol className={styles.table} aria-label={t('league.title')}>{rowsFor(list)}</ol>
+        </div>
       )}
       {league.updated_at && <p className={styles.updated}>{t('league.updated', { at: formatDateTime(league.updated_at, locale) })}</p>}
       <p className={styles.footer}>{t('league.footer')}</p>
