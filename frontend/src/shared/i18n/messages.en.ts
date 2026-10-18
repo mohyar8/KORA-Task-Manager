@@ -362,7 +362,10 @@ export const en = {
   'tasks.assignees.none': 'No assignees (they were removed automatically).',
   'tasks.assignees.pick': 'Choose a Member…',
   'tasks.assignees.all': 'Select all shown',
-  'tasks.assignees.leadership': 'Event Leader and Deputy (assignable by leaders and managers only; not part of Select all)',
+  'tasks.fromOutside': 'From outside the structure',
+  'tasks.assignees.other': 'Other: assign someone outside your team',
+  'tasks.assignees.otherHint': 'Pick anyone outside your scope, such as the Event Leader, the Deputy or a member of another team.',
+  'tasks.assignees.externalChip': 'Outside the team',
   'tasks.assignees.clear': 'Clear shown',
   'tasks.assignees.removeTitle': 'Remove {name}?',
   'tasks.assignees.removeBody': 'They stop being an assignee of this task. A task must keep at least one assignee when you remove one manually.',
@@ -539,6 +542,26 @@ export const en = {
   'home.notifications.view': 'Open notifications',
 
   'cal.title': 'Calendar',
+
+  'cal.view.mine': 'My tasks',
+
+  'cal.view.administration': 'Administration tasks',
+
+  'cal.view.all': 'Full calendar',
+
+  'cal.filter.administration': 'Administration',
+
+  'cal.filter.allAdministrations': 'All Administrations',
+
+  'cal.filter.status': 'Status',
+
+  'cal.filter.allStatuses': 'All statuses',
+
+  'cal.myTeam': 'my team',
+
+  'perm.calendar.view_administration': 'View the Administration task calendar',
+
+  'perm.calendar.view_all': 'View the full calendar of every Administration',
   'cal.description': 'Events, meetings and your own task due dates.',
   'cal.prev': 'Previous month',
   'cal.next': 'Next month',

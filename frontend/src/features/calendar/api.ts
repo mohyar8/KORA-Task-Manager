@@ -73,6 +73,27 @@ export const calKey = ['calendar'] as const
 export const useMyCalendar = (from: string, to: string) =>
   useQuery({ queryKey: [...calKey, 'range', from, to], queryFn: () => http.get<MyCalendar>('/calendar', { from, to }) })
 
+export interface BroadTask {
+  task_id: string
+  title: string
+  due_at: string
+  status: TaskStatus
+  scope_unit_id: string
+  unit_name: string
+  administration_id: string | null
+  administration_name: string | null
+  from_outside: boolean
+}
+
+export type BroadScope = 'administration' | 'all'
+
+/** Task due dates of the caller's Administration, or of every Administration (contract §12). */
+export const useBroadCalendar = (scope: BroadScope, from: string, to: string) =>
+  useQuery({
+    queryKey: [...calKey, 'broad', scope, from, to],
+    queryFn: () => http.get<{ tasks: BroadTask[] }>(`/calendar/${scope}`, { from, to }),
+  })
+
 /** All events the caller may see (no range filter exists on this route, contract §15.4). */
 export const useVisibleEvents = () =>
   useQuery({ queryKey: [...calKey, 'visible'], queryFn: () => http.get<CalendarEvent[]>('/calendar/events') })

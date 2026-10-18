@@ -124,6 +124,7 @@ export function TasksPage() {
               leading={<Avatar tone={statusAccent[task.status]}><StatusIcon status={task.status} /></Avatar>}
               meta={
                 <>
+                  {task.from_outside && <Chip tone="info">{t('tasks.fromOutside')}</Chip>}
                   {task.series_id && <Link to={`/task-series/${task.series_id}`}><Chip>{t('tasks.series')}</Chip></Link>}
                   {task.priority && <Chip tone={task.priority === 'urgent' ? 'danger' : task.priority === 'high' ? 'warning' : 'neutral'}>{t(`task.priority.${task.priority}`)}</Chip>}
                   <span><DueText task={task} /></span>
@@ -160,7 +161,7 @@ export function TasksPage() {
           onClose={() => setCreating(false)}
           onSubmit={(v) =>
             create.mutate(
-              { title: v.title, description: v.description, priority: v.priority, due_at: v.due_at, scope_unit_id: v.scope_unit_id, assignee_member_ids: v.assignee_member_ids },
+              { title: v.title, description: v.description, priority: v.priority, due_at: v.due_at, scope_unit_id: v.scope_unit_id, assignee_member_ids: v.assignee_member_ids, external_assignee_member_ids: v.external_assignee_member_ids },
               { onSuccess: () => { setCreating(false); toast(t('tasks.created')) } },
             )
           }

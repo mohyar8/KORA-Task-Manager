@@ -133,7 +133,7 @@ Each default applies at the role's unit: KORA for the Event/Project Leader and D
 System Admin is a separate grant, not a role. It authorizes only `/api/v1/admin/*`. It gives **no** access to units, tasks, announcements, events or notifications unless the admin gives an account (possibly their own) an explicit override. The final active System Admin can be neither deactivated nor revoked.
 
 ### 3.5 "Within scope" (Members)
-A Member is within a unit's scope if their current Team placement **or** their role's unit is that unit or lies beneath it. This rule decides who is eligible as an assignee, recipient or invitee. **Exception (tasks only):** the Event Leader and Deputy (role unit = KORA) are eligible task assignees in any scope; only Team Leaders, Administration Managers, the PMO Leader and the Event Leader/Deputy may assign them (others get **422** `"Only team leaders and managers may assign the Event Leader or Deputy."`).
+A Member is within a unit's scope if their current Team placement **or** their role's unit is that unit or lies beneath it. This rule decides who is eligible as an assignee, recipient or invitee. **Exception (tasks only):** the Event Leader, Deputy and PMO Leader are never regular task assignees; they, or any active Member outside the scope, can be assigned only through "Other" (`external_assignee_member_ids`, or `external: true` on `POST /tasks/{id}/assignees`). Regular assignees that are top roles get **422** `"The Event Leader, Deputy and PMO Leader can only be assigned through 'Other'."`. External assignees stay assigned when the scope check runs.
 
 ---
 
@@ -266,7 +266,7 @@ Rules (422 = structure violation, 409 = state conflict):
 - Permission is checked **before** existence, so an unknown `unit_id` returns **403**, not 404.
 
 ### 8.1a Member lookup (`GET /api/v1/organization/members`) — CurrentAccess
-The lookup for pickers and names (assignees, recipients, invitees, task creators). **200** `DirectoryMemberResponse[]` ordered by `full_name`: `id` (the Member id used everywhere else), `full_name`, `team_id|null`, `role_key|null`. **No contact or academic data.** Every caller with an operational scope also sees the Event Leader and Deputy (names only), because they can be assigned tasks from any scope.
+The lookup for pickers and names (assignees, recipients, invitees, task creators). **200** `DirectoryMemberResponse[]` ordered by `full_name`: `id` (the Member id used everywhere else), `full_name`, `team_id|null`, `role_key|null`. **No contact or academic data.** `?scope=all` (callers who can create tasks) lists every active Member for "Other".
 - **Who is listed:** active Members (Member and account both active) whose Team or role unit is within the scope of **any unit where the caller holds one of `task.view`, `task.create`, `task.manage`, `announcement.publish`, `announcement.manage`, `calendar.create`, `calendar.manage`, `organization.manage`**, plus the caller's own Member record. The normal role defaults therefore show a Team Member their own Team, an Administration Manager their Administration, and the Event/Project Leader everyone; overrides expand or restrict it like any other scoped permission.
 - **Not listed:** deactivated Members and Members outside the caller's scope. A Member id seen elsewhere (e.g. a former assignee in task history) may therefore be missing from the lookup; clients must show a neutral placeholder rather than fail.
 - The list is unpaginated. It is not the System Admin list (`/admin/members`), which keeps all profile data.
@@ -666,3 +666,11 @@ Remaining (unchanged on purpose, or awaiting a decision):
 | 80 | GET | `/api/v1/calendar/events/{event_id}/history` | access |
 
 Guards: **session** = AuthenticatedSession (a temporary password is allowed); **account** = CurrentAccount; **access** = CurrentAccess (the account plus its permission snapshot; the handler checks permissions); **admin** = SystemAdmin. Unsafe methods always also require CSRF (§2.2), except sign-in.
+
+
+## Addendum 2026-10-18
+- `task.create` is no longer a default of Member and PMO Member (only Team Leader, Administration Manager and the leadership roles; a System Admin can grant it).
+- `CreateTaskRequest`/`CreateSubtaskRequest`: `assignee_member_ids` (default `[]`) + `external_assignee_member_ids` (default `[]`); at least one assignee overall. `TaskResponse` adds `external_assignees: [{id, full_name}]` and `from_outside: boolean` (creator was not the Team Leader / Administration Manager of the scope; snapshot at creation).
+- New permissions `calendar.view_administration` (default: Team Leader, Administration Manager) and `calendar.view_all` (default: Event Leader, Deputy, PMO Leader, PMO Member), grantable by overrides.
+- `GET /calendar/administration?from&to` and `GET /calendar/all?from&to` (403 without the permission): `{starts_at, ends_at, tasks: [{task_id, title, due_at, status, scope_unit_id, unit_name, administration_id|null, administration_name|null, from_outside}]}`. The first covers the Administration containing each unit where the caller holds the permission; the second every unit.
+- Arabic names: قائد الحدث، نائب قائد الحدث، مدير المشروع (PMO Leader)، مسؤول متابعة (PMO Member)، مدير الإدارة، قائد الفريق؛ the PMO unit is named «مكتب إدارة المشروع (PMO)».

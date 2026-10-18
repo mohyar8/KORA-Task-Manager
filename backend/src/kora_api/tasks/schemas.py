@@ -36,7 +36,16 @@ class TaskFieldsRequest(BaseModel):
 
 
 class CreateSubtaskRequest(TaskFieldsRequest):
-    assignee_member_ids: Assignees
+    # Members of the scope; at least one assignee overall (regular or external).
+    assignee_member_ids: list[uuid.UUID] = []
+    # 'Other': any active Member outside the scope, including the Event Leader and Deputy.
+    external_assignee_member_ids: list[uuid.UUID] = []
+
+    @model_validator(mode="after")
+    def _has_an_assignee(self) -> Self:
+        if not self.assignee_member_ids and not self.external_assignee_member_ids:
+            raise ValueError("A task needs at least one assignee.")
+        return self
 
 
 class CreateTaskRequest(CreateSubtaskRequest):
@@ -67,6 +76,7 @@ class StatusRequest(BaseModel):
 
 class AssigneeRequest(BaseModel):
     member_id: uuid.UUID
+    external: bool = False
 
 
 class MoveTaskRequest(BaseModel):
@@ -75,6 +85,11 @@ class MoveTaskRequest(BaseModel):
 
 class CommentRequest(BaseModel):
     body: CommentBody
+
+
+class ExternalAssigneeResponse(BaseModel):
+    id: uuid.UUID
+    full_name: str
 
 
 class TaskResponse(BaseModel):
@@ -89,10 +104,14 @@ class TaskResponse(BaseModel):
     series_id: uuid.UUID | None
     created_by_account_id: uuid.UUID
     created_by_member_id: uuid.UUID
+    # Created by someone other than the scope's Team Leader or Administration Manager.
+    from_outside: bool
     created_at: datetime
     updated_at: datetime
     started_at: datetime | None
     assignee_member_ids: list[uuid.UUID]
+    # The assignees given through 'Other' (outside the scope), with their names.
+    external_assignees: list[ExternalAssigneeResponse]
 
 
 class CommentResponse(BaseModel):

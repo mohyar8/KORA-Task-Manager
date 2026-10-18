@@ -7,7 +7,8 @@ Members (role @ role unit, Team):
   pmo_lead    PMO Leader @ PMO,                     Team A2
   pmo_m       PMO Member @ PMO,                     Team A2
   tl_a1       Team Leader @ Team A1
-  m_a1, m_a1b Member @ Team A1
+  m_a1, m_a1b Member @ Team A1 (m_a1 holds an explicit task.create grant at Team A1; Members
+              and PMO Members cannot create tasks by default)
   m_a2        Member @ Team A2
   m_b1        Member @ Team B1
 Accounts without a Member: sysadmin (System Admin), outsider.
@@ -22,10 +23,11 @@ import pytest
 from httpx import AsyncClient, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from kora_api.access.permissions import OverrideEffect, Permission
 from kora_api.organization.constants import KORA_UNIT_ID, PMO_UNIT_ID, RoleKey
 from tests.access.helpers import create_account, csrf_headers, signed_in
 from tests.conftest import ClientFactory
-from tests.organization.helpers import Structure, make_member, make_structure
+from tests.organization.helpers import Structure, add_override, make_member, make_structure
 
 TASKS = "/api/v1/tasks"
 SERIES = "/api/v1/task-series"
@@ -63,6 +65,9 @@ async def world(db_session: AsyncSession) -> World:
         )
         member_ids[name] = member.id
         account_ids[name] = account.id
+    await add_override(
+        db_session, account_ids["m_a1"], s.team_a1, OverrideEffect.GRANT, Permission.TASK_CREATE
+    )
     account_ids["sysadmin"] = (await create_account(db_session, "sysadmin", system_admin=True)).id
     account_ids["outsider"] = (await create_account(db_session, "outsider")).id
     return World(s, member_ids, account_ids)

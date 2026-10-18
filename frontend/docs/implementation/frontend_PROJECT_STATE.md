@@ -194,3 +194,9 @@ Tests: 100 pass; all main routes re-checked at 375 px, no overflow.
 - Search (`shared/lib/search.ts`): every typed word must match, in any order, with Arabic letter normalization; used by members, assignee picker and tasks.
 - Notification bell (and the Home bell card) glow/ring while there are unread items; SVG favicon from `public/favicon.svg`.
 - Assignee picker: "Select all" (shown members only) and a highlighted block for the Event Leader and Deputy, visible only to leaders/managers and never included in Select all (`useMemberNames().leadership`).
+
+## 2026-10-18 — structure rules
+- Members cannot create tasks (no `task.create` default); the picker keeps top roles out of the regular list and adds "Other" (any member, via `/organization/members?scope=all`). The earlier "leadership block / Select all exclusion" was replaced by this.
+- Task badges: «من خارج الهيكل» (`from_outside`) on list, board and detail; «من خارج الفريق» chip on external assignees.
+- Calendar: tabs «مهامي» / «مهام الإدارة» / «التقويم الكامل» by `calendar.view_administration` / `calendar.view_all`; team colours (own team navy); the full view filters by Administration and status (`BroadCalendar.tsx`).
+- Role/unit names aligned with the organization's terms.

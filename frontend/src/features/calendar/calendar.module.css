@@ -64,3 +64,10 @@
 .rows { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2); }
 .row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-3) var(--space-4); border: 1px solid var(--ui-border); border-radius: var(--radius-control); }
 .when { color: var(--ui-muted); font-size: var(--text-xs); }
+
+.tabs { display: flex; gap: var(--space-2); flex-wrap: wrap; margin-block-end: var(--space-4); }
+.tab { min-block-size: var(--min-target); padding-inline: var(--space-4); border-radius: 999px; border: 1px solid var(--ui-border); background: var(--ui-surface); font: inherit; font-weight: 600; cursor: pointer; }
+.tabOn { background: var(--kora-navy); border-color: var(--kora-navy); color: #fff; }
+.filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: var(--space-3); margin-block-end: var(--space-4); }
+.chipDone { opacity: 0.55; text-decoration: line-through; }
+.swatch { display: inline-block; inline-size: 10px; block-size: 10px; border-radius: 3px; margin-inline-end: 4px; }

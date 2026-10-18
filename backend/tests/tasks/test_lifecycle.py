@@ -82,8 +82,8 @@ async def test_invalid_creation_is_rejected(
 async def test_pmo_task_may_be_assigned_to_pmo_members(
     world: World, login: Login, new_task: NewTask
 ) -> None:
-    task = await new_task(await login("pmo_lead"), "pmo", ["pmo_m", "pmo_lead"])
-    assert len(task["assignee_member_ids"]) == 2
+    task = await new_task(await login("pmo_lead"), "pmo", ["pmo_m"])
+    assert task["assignee_member_ids"] == [str(world.member_ids["pmo_m"])]
 
 
 # --- Assignee, creator and manager actions --------------------------------------------------------
@@ -92,7 +92,7 @@ async def test_pmo_task_may_be_assigned_to_pmo_members(
 async def test_assignees_progress_and_complete_but_cannot_cancel(
     world: World, login: Login, new_task: NewTask
 ) -> None:
-    task = await new_task(await login("m_a1b"), "team_a1", ["m_a1"])
+    task = await new_task(await login("mgr_a"), "team_a1", ["m_a1"])
     assignee = await login("m_a1")
     team_leader = await login("tl_a1")  # neither creator nor assignee, but manages Team A1
 

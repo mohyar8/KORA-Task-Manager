@@ -89,7 +89,7 @@ function TaskView({ task }: { task: Task }) {
         <Card>
           <dl className={styles.facts}>
             <dt>{t('tasks.col.status')}</dt>
-            <dd><StatusChip status={task.status} /> {task.series_id && <Link to={`/task-series/${task.series_id}`}><Chip>{t('series.open')}</Chip></Link>}</dd>
+            <dd><StatusChip status={task.status} /> {task.from_outside && <Chip tone="info">{t('tasks.fromOutside')}</Chip>} {task.series_id && <Link to={`/task-series/${task.series_id}`}><Chip>{t('series.open')}</Chip></Link>}</dd>
             <dt>{t('tasks.col.priority')}</dt>
             <dd><PriorityText priority={task.priority} /></dd>
             <dt>{t('tasks.col.due')}</dt>

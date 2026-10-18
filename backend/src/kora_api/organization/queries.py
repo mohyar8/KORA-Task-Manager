@@ -12,7 +12,7 @@ from kora_api.access.models import AccountStatus, UserAccount
 from kora_api.access.org_facts import UnitInfo
 from kora_api.access.permissions import Permission
 from kora_api.core import clock
-from kora_api.organization.constants import KORA_UNIT_ID, MemberStatus
+from kora_api.organization.constants import MemberStatus
 from kora_api.organization.facts import SqlOrganizationFacts
 from kora_api.organization.models import Member, MemberTeamPlacement, RoleAssignment
 
@@ -106,16 +106,39 @@ def unit_chain(unit_id: uuid.UUID | None, units: Mapping[uuid.UUID, UnitInfo]) -
     return chain
 
 
-def is_event_leadership(position: MemberPosition) -> bool:
-    """The Event Leader and Deputy sit directly under KORA, with no Team."""
-    return position.active and position.role_unit_id == KORA_UNIT_ID
+# The Event Leader, Deputy and PMO Leader cannot be given tasks through a Team's or
+# Administration's normal assignee list; they are reachable only through the explicit "Other".
+TOP_ROLES = frozenset({"event_project_leader", "deputy_leader", "pmo_leader"})
+
+
+def is_top_role(position: MemberPosition) -> bool:
+    return position.role_key in TOP_ROLES
 
 
 def member_within_task_scope(
     position: MemberPosition, scope_unit_id: uuid.UUID, units: Mapping[uuid.UUID, UnitInfo]
 ) -> bool:
-    """Task eligibility: in scope, or the Event Leader / Deputy, who can be given work anywhere."""
-    return member_within_scope(position, scope_unit_id, units) or is_event_leadership(position)
+    """Regular task eligibility: in the scope, and not one of the top roles."""
+    return member_within_scope(position, scope_unit_id, units) and not is_top_role(position)
+
+
+async def member_names(db: AsyncSession, member_ids: Iterable[uuid.UUID]) -> dict[uuid.UUID, str]:
+    ids = set(member_ids)
+    if not ids:
+        return {}
+    rows = await db.execute(select(Member.id, Member.full_name).where(Member.id.in_(ids)))
+    return {member_id: name for member_id, name in rows}
+
+
+def owns_scope(
+    position: MemberPosition | None, scope_unit_id: uuid.UUID, units: Mapping[uuid.UUID, UnitInfo]
+) -> bool:
+    """True for the Team Leader or Administration Manager whose unit is the scope or above it."""
+    return (
+        position is not None
+        and position.role_key in ("team_leader", "administration_manager")
+        and position.role_unit_id in unit_chain(scope_unit_id, units)
+    )
 
 
 def member_within_scope(
@@ -155,13 +178,15 @@ class DirectoryEntry:
 
 
 async def member_directory(
-    db: AsyncSession, snapshot: AccessSnapshot, account_id: uuid.UUID
+    db: AsyncSession, snapshot: AccessSnapshot, account_id: uuid.UUID, *, include_all: bool = False
 ) -> list[DirectoryEntry]:
     """Active Members within the scope of any unit where the caller holds an operational
     permission, plus the caller's own Member record. Ordered by name."""
     scope: set[uuid.UUID] = set()
     for permission in DIRECTORY_PERMISSIONS:
         scope |= snapshot.units_with(permission)
+    # Task creators may pick anyone outside their own team through "Other" (names only).
+    everyone = include_all and bool(snapshot.units_with(Permission.TASK_CREATE))
     units = await current_units(db)
     rows = await db.execute(_positions_query().order_by(Member.full_name))
     entries: list[DirectoryEntry] = []
@@ -170,10 +195,7 @@ async def member_directory(
         if not position.active:
             continue
         reach = set(unit_chain(team_id, units)) | set(unit_chain(role_unit_id, units))
-        # The Event Leader and Deputy are names anyone who works on tasks may need (they can be
-        # assigned work from any scope), so they are listed for every caller with a scope.
-        listed = is_event_leadership(position) and bool(scope)
-        if member.account_id == account_id or reach & scope or listed:
+        if member.account_id == account_id or everyone or reach & scope:
             entries.append(
                 DirectoryEntry(
                     member_id=member.id,

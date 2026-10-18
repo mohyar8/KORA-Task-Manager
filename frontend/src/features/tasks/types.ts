@@ -20,7 +20,11 @@ export interface Task {
   created_at: string
   updated_at: string
   started_at: string | null
+  /** Created by someone other than the scope's Team Leader or Administration Manager. */
+  from_outside: boolean
   assignee_member_ids: string[]
+  /** The assignees given through "Other" (outside the scope), with their names. */
+  external_assignees: { id: string; full_name: string }[]
 }
 
 export interface TaskFields {

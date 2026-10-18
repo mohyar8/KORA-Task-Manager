@@ -29,6 +29,8 @@ export const PERMISSIONS: Permission[] = [
   'announcement.manage',
   'calendar.create',
   'calendar.manage',
+  'calendar.view_administration',
+  'calendar.view_all',
 ]
 
 export type OverrideEffect = 'grant' | 'deny'

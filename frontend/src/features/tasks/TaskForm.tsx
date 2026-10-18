@@ -13,6 +13,7 @@ import styles from './tasks.module.css'
 export interface TaskFormValues extends TaskFields {
   scope_unit_id: string
   assignee_member_ids: string[]
+  external_assignee_member_ids: string[]
 }
 
 interface Props {
@@ -41,12 +42,13 @@ export function TaskFormModal(props: Props) {
   const [due, setDue] = useState(isoToLocalInput(initial?.due_at ?? null))
   const [scope, setScope] = useState('')
   const [assignees, setAssignees] = useState<string[]>([])
+  const [externals, setExternals] = useState<string[]>([])
   const [submitted, setSubmitted] = useState(false)
 
   const problems = {
     title: !name.trim() ? t('tasks.titleRequired') : undefined,
     scope: scopeOptions && !scope ? t('tasks.scopeRequired') : undefined,
-    assignees: withAssignees && assignees.length === 0 ? t('tasks.assigneesRequired') : undefined,
+    assignees: withAssignees && assignees.length + externals.length === 0 ? t('tasks.assigneesRequired') : undefined,
   }
 
   const submit = () => {
@@ -59,6 +61,7 @@ export function TaskFormModal(props: Props) {
       due_at: localInputToIso(due),
       scope_unit_id: scope,
       assignee_member_ids: assignees,
+      external_assignee_member_ids: externals,
     })
   }
 
@@ -90,7 +93,7 @@ export function TaskFormModal(props: Props) {
             {scopeOptions.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
           </SelectField>
         )}
-        {withAssignees && <AssigneePicker selected={assignees} onChange={setAssignees} error={submitted ? problems.assignees : undefined} />}
+        {withAssignees && <AssigneePicker selected={assignees} onChange={setAssignees} external={externals} onExternalChange={setExternals} error={submitted ? problems.assignees : undefined} />}
         <InlineError error={error} />
       </div>
     </Modal>

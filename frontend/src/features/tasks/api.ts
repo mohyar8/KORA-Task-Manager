@@ -31,6 +31,7 @@ function useRefresh() {
 
 export interface NewTask extends TaskFields {
   assignee_member_ids: string[]
+  external_assignee_member_ids?: string[]
 }
 
 export function useCreateTask() {
@@ -59,7 +60,7 @@ export function useSetStatus(id: string) {
 
 export function useAddAssignee(id: string) {
   const refresh = useRefresh()
-  return useMutation({ mutationFn: (member_id: string) => http.post<Task>(`/tasks/${id}/assignees`, { member_id }), onSuccess: refresh })
+  return useMutation({ mutationFn: (body: { member_id: string; external: boolean }) => http.post<Task>(`/tasks/${id}/assignees`, body), onSuccess: refresh })
 }
 
 export function useRemoveAssignee(id: string) {

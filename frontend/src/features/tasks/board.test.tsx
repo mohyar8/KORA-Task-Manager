@@ -13,7 +13,7 @@ const access = accessFor(['task.view@u-team', 'task.create@u-team', 'task.manage
 const task = (over: Partial<Task>): Task => ({
   id: 't1', title: 'Order kits', description: null, priority: 'high', due_at: null, status: 'new', scope_unit_id: 'u-team', parent_id: null,
   series_id: null, created_by_account_id: 'a-sara', created_by_member_id: 'm-sara', created_at: '2026-10-10T08:00:00Z',
-  updated_at: '2026-10-10T08:00:00Z', started_at: null, assignee_member_ids: ['m-sara'], ...over,
+  updated_at: '2026-10-10T08:00:00Z', started_at: null, assignee_member_ids: ['m-sara'], external_assignees: [], from_outside: false, ...over,
 })
 
 describe('Task board', () => {

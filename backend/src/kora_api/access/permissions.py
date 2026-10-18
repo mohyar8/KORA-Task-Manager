@@ -12,6 +12,8 @@ class Permission(enum.StrEnum):
     ANNOUNCEMENT_MANAGE = "announcement.manage"
     CALENDAR_CREATE = "calendar.create"
     CALENDAR_MANAGE = "calendar.manage"
+    CALENDAR_VIEW_ADMINISTRATION = "calendar.view_administration"
+    CALENDAR_VIEW_ALL = "calendar.view_all"
 
 
 PERMISSION_DESCRIPTIONS: dict[Permission, str] = {
@@ -23,6 +25,10 @@ PERMISSION_DESCRIPTIONS: dict[Permission, str] = {
     Permission.ANNOUNCEMENT_MANAGE: "See, edit and withdraw announcements within scope.",
     Permission.CALENDAR_CREATE: "Create events and meetings within scope (active Members only).",
     Permission.CALENDAR_MANAGE: "See, edit and cancel events and meetings within scope.",
+    Permission.CALENDAR_VIEW_ADMINISTRATION: (
+        "See the task calendar of the whole Administration that contains the unit."
+    ),
+    Permission.CALENDAR_VIEW_ALL: "See the task calendar of every Administration.",
 }
 
 

@@ -55,7 +55,7 @@ export function SubtasksCard({ task, viewer }: { task: Task; viewer: Viewer }) {
           onClose={() => setAdding(false)}
           onSubmit={(v) =>
             create.mutate(
-              { title: v.title, description: v.description, priority: v.priority, due_at: v.due_at, assignee_member_ids: v.assignee_member_ids },
+              { title: v.title, description: v.description, priority: v.priority, due_at: v.due_at, assignee_member_ids: v.assignee_member_ids, external_assignee_member_ids: v.external_assignee_member_ids },
               { onSuccess: () => { setAdding(false); toast(t('tasks.subtasks.created')) } },
             )
           }

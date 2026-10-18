@@ -102,6 +102,7 @@ export function TaskBoard({ tasks, viewer }: { tasks: Task[]; viewer: Viewer }) 
                         <Link className={styles.cardTitle} to={`/tasks/${task.id}`}>{task.title}</Link>
                       </div>
                       <div className={styles.cardMeta}>
+                        {task.from_outside && <Chip tone="info">{t('tasks.fromOutside')}</Chip>}
                         {task.priority && <Chip tone={task.priority === 'urgent' ? 'danger' : task.priority === 'high' ? 'warning' : 'neutral'}>{t(`task.priority.${task.priority}`)}</Chip>}
                         {task.due_at && (
                           <span className={styles.due}><CalendarClock size={14} aria-hidden="true" /> <DueText task={task} /></span>

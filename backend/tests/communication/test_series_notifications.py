@@ -193,11 +193,11 @@ async def test_editing_a_full_series_sends_one_notification_per_recipient_and_ca
         subtasks=[{"title": "Collect", "assignee_member_ids": [str(world.member_ids["m_a1b"])]}],
     )
     series = (await creator.post(SERIES, body)).json()
-    users = ("m_a1", "m_a1b", "tl_a1", "leader", "mgr_a")
+    users = ("m_a1", "m_a1b", "tl_a1", "mgr_a")
     await _clear(login, *users)
     frozen_clock.advance(timedelta(minutes=1))
 
-    # One operation changes content and assignees (tl_a1 out, leader in); mgr_a is the actor.
+    # One operation changes content and assignees (tl_a1 out, creator m_a1 in); mgr_a is the actor.
     manager = await login("mgr_a")
     response = await manager.patch(
         f"{SERIES}/{series['id']}",
@@ -206,7 +206,7 @@ async def test_editing_a_full_series_sends_one_notification_per_recipient_and_ca
             "priority": "high",
             "assignee_member_ids": [
                 str(world.member_ids["m_a1b"]),
-                str(world.member_ids["leader"]),
+                str(world.member_ids["m_a1"]),
             ],
         },
     )
@@ -215,13 +215,14 @@ async def test_editing_a_full_series_sends_one_notification_per_recipient_and_ca
     shapes = {user: _shape(await notifications_of(await login(user))) for user in users}
     update = ("task_update", "series_updated", "task_series")
     assert shapes == {
-        "m_a1": [update],  # creator
+        "m_a1": [("task_assignment", "series_assigned", "task_series"), update],  # creator, added
         "m_a1b": [update],  # kept assignee
-        "leader": [("task_assignment", "series_assigned", "task_series"), update],
         "tl_a1": [("task_assignment", "series_unassigned", "task_series")],  # removed only
         "mgr_a": [],  # actor
     }
-    [creator_update] = await notifications_of(await login("m_a1"))
+    [creator_update] = [
+        n for n in await notifications_of(await login("m_a1")) if n["kind"] == "series_updated"
+    ]
     assert creator_update["source_id"] == series["id"]
     assert creator_update["summary"].startswith("Weekly report v2 (repeats weekly until ")
     assert await _per_occurrence_rows(db_session, series["id"]) == 0

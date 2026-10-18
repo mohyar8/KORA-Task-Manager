@@ -295,3 +295,7 @@ To be scoped. Candidates include reminders, task workspaces and analytics, and t
 - Members holding roles that are not Team-level (Event Leader, Deputy, PMO Leader/Member, Administration Manager) can be provisioned/reactivated without a Team (`team_id` optional; Team Leader/Member still require one). Tests in `tests/organization/test_members.py`.
 - Tasks: the Event Leader and Deputy are eligible assignees in any scope (`organization.queries.member_within_task_scope`, `is_event_leadership`); only leaders/managers may assign them (`tasks.service.LEADERSHIP_ASSIGNERS`). `MemberPosition.role_key` added. The Member lookup lists them for every caller with a scope. Tests: `tests/tasks/test_event_leadership.py`.
 - Production data (Neon) was seeded with a one-off import of members and historical tasks (not part of the codebase).
+
+## 2026-10-18 — structure rules, "Other" assignees, broad calendars
+- Migrations b2d4f6a8c0e1 (task.create default ended for Member/PMO Member), c3e5a7b9d1f2 (`task_assignments.is_external`), d4f6b8c0e2a3 (`tasks.from_outside`), e5a7c9d1f3b4 (calendar view permissions), f6b8d0e2a4c5 (PMO unit renamed). Supersedes the earlier "Event Leader assignable by leaders" note: top roles are reachable only through "Other".
+- Broad calendars: `calendar/service.broad_calendar` reads tasks only through `tasks.service.tasks_due_in_units`. Tests: `tests/calendar/test_broad_calendars.py`, `tests/tasks/test_external_assignees.py`.

@@ -60,6 +60,7 @@
 
 .pickAll { align-self: flex-start; background: none; border: 0; padding: var(--space-1) 0; color: var(--kora-fuchsia, #944399); font: inherit; font-weight: 600; cursor: pointer; text-decoration: underline; }
 
-.topList { list-style: none; margin: 0; padding: var(--space-2); display: grid; gap: 2px; border-radius: var(--radius-control); background: rgb(148 67 153 / 0.08); border: 1px dashed var(--kora-fuchsia, #944399); }
 .pickTop { font-weight: 600; }
 .topBadge { margin-inline-start: auto; padding: 2px var(--space-2); border-radius: 999px; background: var(--kora-fuchsia, #944399); color: #fff; font-size: var(--text-xs, 0.75rem); font-weight: 600; white-space: nowrap; }
+
+.otherBox { display: grid; gap: var(--space-2); border-top: 1px dashed var(--ui-border); padding-top: var(--space-3); }

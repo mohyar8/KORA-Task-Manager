@@ -34,9 +34,10 @@ def _body(world: World, scope: str, assignees: list[str]) -> dict[str, Any]:
         ("leader", ["kora", "admin_b", "team_b1", "pmo"], []),
         ("mgr_a", ["admin_a", "team_a2"], ["kora", "admin_b", "pmo"]),
         ("pmo_lead", ["pmo"], ["kora", "team_a2"]),
-        ("pmo_m", ["pmo"], ["kora", "team_a2"]),
+        ("pmo_m", [], ["pmo", "kora", "team_a2"]),  # PMO Members cannot create tasks
         ("tl_a1", ["team_a1"], ["admin_a", "team_a2"]),
-        ("m_a1", ["team_a1"], ["admin_a", "team_a2", "kora"]),
+        ("m_a1b", [], ["team_a1", "admin_a", "team_a2", "kora"]),  # plain Member
+        ("m_a1", ["team_a1"], ["admin_a", "team_a2", "kora"]),  # explicit grant at Team A1
     ],
 )
 async def test_every_role_creates_within_its_assigned_scope(

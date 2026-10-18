@@ -86,6 +86,9 @@ class Task(Base):
     series_template_key: Mapped[uuid.UUID | None]
     created_by_account_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("user_accounts.id"))
     created_by_member_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("members.id"), index=True)
+    # Snapshot at creation: the creator was not the Team Leader or Administration Manager of the
+    # task's scope (the Event Leader, Deputy, PMO Leader, or a Member granted task.create).
+    from_outside: Mapped[bool] = mapped_column(default=False, server_default=text("false"))
     created_at: Mapped[datetime]
     updated_at: Mapped[datetime]
     # First time work started (in_progress or completed); never cleared.
@@ -138,6 +141,9 @@ class TaskAssignment(Base):
     created_by_account_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("user_accounts.id"))
     # The account whose action caused the removal (for automatic removals, e.g. a deactivation).
     ended_by_account_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("user_accounts.id"))
+    # Given through 'Other': a Member outside the task's scope (or a top role). Such assignments
+    # are kept when the scope check runs; only inactivity or an explicit removal ends them.
+    is_external: Mapped[bool] = mapped_column(default=False, server_default=text("false"))
     end_reason: Mapped[AssignmentEndReason | None] = mapped_column(
         Enum(AssignmentEndReason, name="task_assignment_end_reason", values_callable=_enum_values)
     )

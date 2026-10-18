@@ -15,6 +15,7 @@ import enum
 import uuid
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
+from dataclasses import field as dataclass_field
 from datetime import UTC, datetime
 from typing import Any
 
@@ -83,6 +84,8 @@ async def actor_for(db: AsyncSession, access: AccessContext) -> TaskActor:
 class TaskView:
     task: Task
     assignee_member_ids: frozenset[uuid.UUID]
+    # Assignees given through 'Other' (outside the scope), id -> full name.
+    external: Mapping[uuid.UUID, str] = dataclass_field(default_factory=lambda: {})
 
 
 @dataclass(frozen=True)
@@ -148,11 +151,37 @@ async def assignees_of(
     return {task_id: frozenset(members) for task_id, members in result.items()}
 
 
+async def externals_of(
+    db: AsyncSession, task_ids: Iterable[uuid.UUID]
+) -> dict[uuid.UUID, dict[uuid.UUID, str]]:
+    ids = set(task_ids)
+    result: dict[uuid.UUID, dict[uuid.UUID, str]] = {task_id: {} for task_id in ids}
+    if not ids:
+        return result
+    rows = (
+        await db.execute(
+            select(TaskAssignment.task_id, TaskAssignment.member_id).where(
+                TaskAssignment.task_id.in_(ids),
+                TaskAssignment.valid_to.is_(None),
+                TaskAssignment.is_external.is_(True),
+            )
+        )
+    ).all()
+    names = await org.member_names(db, {member_id for _, member_id in rows})
+    for task_id, member_id in rows:
+        result[task_id][member_id] = names.get(member_id, "")
+    return result
+
+
 async def _load(db: AsyncSession, task_id: uuid.UUID, *, lock: bool = False) -> TaskView:
     task = await db.get(Task, task_id, with_for_update=lock)
     if task is None:
         raise TaskNotFoundError
-    return TaskView(task, (await assignees_of(db, [task_id]))[task_id])
+    return TaskView(
+        task,
+        (await assignees_of(db, [task_id]))[task_id],
+        (await externals_of(db, [task_id]))[task_id],
+    )
 
 
 async def load_visible(
@@ -201,7 +230,12 @@ async def list_tasks(
         stmt = stmt.where(Task.scope_unit_id == scope_unit_id)
     tasks = list(await db.scalars(stmt.order_by(Task.due_at.nulls_last(), Task.created_at)))
     assignees = await assignees_of(db, (t.id for t in tasks))
-    return [TaskView(t, assignees[t.id]) for t in tasks if can_view(actor, t, assignees[t.id])]
+    externals = await externals_of(db, (t.id for t in tasks))
+    return [
+        TaskView(t, assignees[t.id], externals[t.id])
+        for t in tasks
+        if can_view(actor, t, assignees[t.id])
+    ]
 
 
 async def due_tasks(
@@ -229,7 +263,35 @@ async def due_tasks(
         )
     )
     assignees = await assignees_of(db, (t.id for t in tasks))
-    return [TaskView(t, assignees[t.id]) for t in tasks if can_view(actor, t, assignees[t.id])]
+    externals = await externals_of(db, (t.id for t in tasks))
+    return [
+        TaskView(t, assignees[t.id], externals[t.id])
+        for t in tasks
+        if can_view(actor, t, assignees[t.id])
+    ]
+
+
+async def tasks_due_in_units(
+    db: AsyncSession, unit_ids: Iterable[uuid.UUID], starts_at: datetime, ends_at: datetime
+) -> list[Task]:
+    """Top-level tasks scoped to any of the units and due in [starts_at, ends_at), any status.
+    Read-only (broad calendar views); callers decide who may see them."""
+    ids = set(unit_ids)
+    if not ids:
+        return []
+    return list(
+        await db.scalars(
+            select(Task)
+            .where(
+                Task.scope_unit_id.in_(ids),
+                Task.parent_id.is_(None),
+                Task.due_at.is_not(None),
+                Task.due_at >= starts_at,
+                Task.due_at < ends_at,
+            )
+            .order_by(Task.due_at, Task.created_at)
+        )
+    )
 
 
 # --- Creation -----------------------------------------------------------------------------------
@@ -242,16 +304,18 @@ async def create_task(
     scope_unit_id: uuid.UUID,
     fields: TaskFields,
     assignee_member_ids: Sequence[uuid.UUID],
+    external_member_ids: Sequence[uuid.UUID] = (),
 ) -> TaskView:
     await require_creator(db, actor, scope_unit_id)
     units = await org.current_units(db)
-    await require_eligible(db, assignee_member_ids, scope_unit_id, units, actor.member)
+    await _require_assignees(db, assignee_member_ids, external_member_ids, scope_unit_id, units)
     view = await insert_task(
         db,
         scope_unit_id=scope_unit_id,
         fields=fields,
         creator=actor,
         assignee_member_ids=assignee_member_ids,
+        external_member_ids=external_member_ids,
     )
     _audit_created(db, view, actor.account_id)
     await db.commit()
@@ -265,19 +329,23 @@ async def create_subtask(
     *,
     fields: TaskFields,
     assignee_member_ids: Sequence[uuid.UUID],
+    external_member_ids: Sequence[uuid.UUID] = (),
 ) -> TaskView:
     parent = (await load_visible(db, actor, parent_id, lock=True)).task
     if parent.parent_id is not None:
         raise InvalidTaskError("Subtasks cannot have subtasks.")
     await require_creator(db, actor, parent.scope_unit_id)
     units = await org.current_units(db)
-    await require_eligible(db, assignee_member_ids, parent.scope_unit_id, units, actor.member)
+    await _require_assignees(
+        db, assignee_member_ids, external_member_ids, parent.scope_unit_id, units
+    )
     view = await insert_task(
         db,
         scope_unit_id=parent.scope_unit_id,
         fields=fields,
         creator=actor,
         assignee_member_ids=assignee_member_ids,
+        external_member_ids=external_member_ids,
         parent_id=parent.id,
     )
     record(db, parent.id, EventKind.SUBTASK_CREATED, actor.account_id, subtask_id=view.task.id)
@@ -314,24 +382,21 @@ async def require_creator(db: AsyncSession, actor: TaskActor, scope_unit_id: uui
         raise InvalidTaskError("Scope unit not found or not active.")
 
 
-# Roles that may give the Event Leader or Deputy a task: managers and leaders, not plain Members.
-LEADERSHIP_ASSIGNERS = frozenset(
-    {"team_leader", "administration_manager", "pmo_leader", "event_project_leader", "deputy_leader"}
-)
-
-
 async def require_eligible(
     db: AsyncSession,
     member_ids: Sequence[uuid.UUID],
     scope_unit_id: uuid.UUID,
     units: Mapping[uuid.UUID, UnitInfo],
-    assigner: org.MemberPosition | None = None,
 ) -> None:
     if not member_ids:
         raise InvalidTaskError("A task needs at least one assignee.")
     if len(set(member_ids)) != len(member_ids):
         raise InvalidTaskError("Assignees must be distinct.")
     positions = await org.member_positions(db, member_ids)
+    if any(m in positions and org.is_top_role(positions[m]) for m in member_ids):
+        raise InvalidTaskError(
+            "The Event Leader, Deputy and PMO Leader can only be assigned through 'Other'."
+        )
     invalid = [
         str(m)
         for m in member_ids
@@ -342,14 +407,33 @@ async def require_eligible(
         raise InvalidTaskError(
             f"Assignees must be active Members within the task scope: {', '.join(invalid)}."
         )
-    if (
-        assigner is not None
-        and assigner.role_key not in LEADERSHIP_ASSIGNERS
-        and any(org.is_event_leadership(positions[m]) for m in member_ids)
-    ):
-        raise InvalidTaskError(
-            "Only team leaders and managers may assign the Event Leader or Deputy."
-        )
+
+
+async def require_external(
+    db: AsyncSession, member_ids: Sequence[uuid.UUID], regular: Sequence[uuid.UUID] = ()
+) -> None:
+    """'Other' assignees: any active Member, in or outside the scope, never also a regular one."""
+    if len(set(member_ids)) != len(member_ids) or set(member_ids) & set(regular):
+        raise InvalidTaskError("Assignees must be distinct.")
+    positions = await org.member_positions(db, member_ids)
+    invalid = [str(m) for m in member_ids if m not in positions or not positions[m].active]
+    if invalid:
+        raise InvalidTaskError(f"Assignees must be active Members: {', '.join(invalid)}.")
+
+
+async def _require_assignees(
+    db: AsyncSession,
+    regular: Sequence[uuid.UUID],
+    external: Sequence[uuid.UUID],
+    scope_unit_id: uuid.UUID,
+    units: Mapping[uuid.UUID, UnitInfo],
+) -> None:
+    if not regular and not external:
+        raise InvalidTaskError("A task needs at least one assignee.")
+    if regular:
+        await require_eligible(db, regular, scope_unit_id, units)
+    if external:
+        await require_external(db, external, regular)
 
 
 async def insert_task(
@@ -359,6 +443,7 @@ async def insert_task(
     fields: TaskFields,
     creator: TaskActor,
     assignee_member_ids: Iterable[uuid.UUID],
+    external_member_ids: Iterable[uuid.UUID] = (),
     parent_id: uuid.UUID | None = None,
     series_id: uuid.UUID | None = None,
     series_template_key: uuid.UUID | None = None,
@@ -374,6 +459,7 @@ async def insert_task(
     assert creator.member_id is not None
     actor_id = actor_account_id or creator.account_id
     now = clock.utcnow()
+    from_outside = not org.owns_scope(creator.member, scope_unit_id, await org.current_units(db))
     task = Task(
         title=fields.title,
         description=fields.description,
@@ -386,6 +472,7 @@ async def insert_task(
         series_template_key=series_template_key,
         created_by_account_id=creator.account_id,
         created_by_member_id=creator.member_id,
+        from_outside=from_outside,
         created_at=now,
         updated_at=now,
     )
@@ -399,9 +486,18 @@ async def insert_task(
             created_by_account_id=actor_id,
         )
     )
-    members = frozenset(assignee_member_ids)
+    regular = frozenset(assignee_member_ids)
+    external = frozenset(external_member_ids)
+    members = regular | external
     for member_id in members:
-        await open_assignment(db, task.id, member_id, actor_id, notify=notify_assignees)
+        await open_assignment(
+            db,
+            task.id,
+            member_id,
+            actor_id,
+            notify=notify_assignees,
+            external=member_id in external,
+        )
     record(
         db,
         task.id,
@@ -411,7 +507,7 @@ async def insert_task(
         assignee_member_ids=sorted(members, key=str),
         **dict(event_data or {}),
     )
-    return TaskView(task, members)
+    return TaskView(task, members, await org.member_names(db, external))
 
 
 # --- Editing and status -------------------------------------------------------------------------
@@ -549,17 +645,23 @@ async def set_status(
 
 
 async def add_assignee(
-    db: AsyncSession, actor: TaskActor, task_id: uuid.UUID, member_id: uuid.UUID
+    db: AsyncSession,
+    actor: TaskActor,
+    task_id: uuid.UUID,
+    member_id: uuid.UUID,
+    external: bool = False,
 ) -> TaskView:
     view = await load_visible(db, actor, task_id, lock=True)
     if not can_administer(actor, view.task):
         raise _deny(MANAGE, view.task)
     if member_id in view.assignee_member_ids:
         raise TaskConflictError("Already an assignee.")
-    await require_eligible(
-        db, [member_id], view.task.scope_unit_id, await org.current_units(db), actor.member
-    )
-    await open_assignment(db, task_id, member_id, actor.account_id)
+    if external:
+        await require_external(db, [member_id])
+    else:
+        units = await org.current_units(db)
+        await require_eligible(db, [member_id], view.task.scope_unit_id, units)
+    await open_assignment(db, task_id, member_id, actor.account_id, external=external)
     record(db, task_id, EventKind.ASSIGNEE_ADDED, actor.account_id, member_id=member_id)
     audit.record(
         db,
@@ -570,7 +672,10 @@ async def add_assignee(
         after={"member_id": member_id},
     )
     await db.commit()
-    return TaskView(view.task, view.assignee_member_ids | {member_id})
+    names = dict(view.external)
+    if external:
+        names.update(await org.member_names(db, [member_id]))
+    return TaskView(view.task, view.assignee_member_ids | {member_id}, names)
 
 
 async def remove_assignee(
@@ -586,7 +691,8 @@ async def remove_assignee(
     await end_assignment(db, task_id, member_id, AssignmentEndReason.REMOVED, actor.account_id)
     _audit_assignee_removed(db, view.task, member_id, AssignmentEndReason.REMOVED, actor.account_id)
     await db.commit()
-    return TaskView(view.task, view.assignee_member_ids - {member_id})
+    names = {k: v for k, v in view.external.items() if k != member_id}
+    return TaskView(view.task, view.assignee_member_ids - {member_id}, names)
 
 
 async def open_assignment(
@@ -596,6 +702,7 @@ async def open_assignment(
     actor_account_id: uuid.UUID,
     *,
     notify: bool = True,
+    external: bool = False,
 ) -> None:
     """Assign a Member. `notify=False` is for series-wide changes, which send one consolidated
     notification per Member (`notify_series_assignment`) instead of one per occurrence."""
@@ -605,6 +712,7 @@ async def open_assignment(
             member_id=member_id,
             valid_from=clock.utcnow(),
             created_by_account_id=actor_account_id,
+            is_external=external,
         )
     )
     if notify:
@@ -666,11 +774,13 @@ async def remove_ineligible_assignees(
     assignees = (await assignees_of(db, [task.id]))[task.id]
     candidates = assignees if member_ids is None else assignees & set(member_ids)
     positions = await org.member_positions(db, candidates)
+    external = set((await externals_of(db, [task.id]))[task.id])
     removed: set[uuid.UUID] = set()
     for member_id in candidates:
         position = positions.get(member_id)
-        if position is not None and org.member_within_task_scope(
-            position, task.scope_unit_id, units
+        if position is not None and (
+            org.member_within_task_scope(position, task.scope_unit_id, units)
+            or (member_id in external and position.active)
         ):
             continue
         reason = (

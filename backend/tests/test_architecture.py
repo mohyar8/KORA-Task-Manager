@@ -78,6 +78,8 @@ async def test_seeded_catalog_matches_code(db_session: AsyncSession) -> None:
         "announcement.manage",
         "calendar.create",
         "calendar.manage",
+        "calendar.view_administration",
+        "calendar.view_all",
     }
 
     roles = {r.key: (r.name, r.unit_kind) for r in await db_session.scalars(select(OrgRole))}
@@ -94,12 +96,18 @@ async def test_seeded_catalog_matches_code(db_session: AsyncSession) -> None:
     assert defaults == (
         {("event_project_leader", "organization.manage"), ("deputy_leader", "organization.manage")}
         | {(role, "task.view") for role in every_role}
-        | {(role, "task.create") for role in every_role}
+        | {(role, "task.create") for role in task_managers}
         | {(role, "task.manage") for role in task_managers}
         | {(role, "announcement.publish") for role in task_managers}
         | {(role, "announcement.manage") for role in task_managers}
         | {(role, "calendar.create") for role in every_role}
         | {(role, "calendar.manage") for role in task_managers}
+        | {("team_leader", "calendar.view_administration")}
+        | {("administration_manager", "calendar.view_administration")}
+        | {
+            (role, "calendar.view_all")
+            for role in ("event_project_leader", "deputy_leader", "pmo_leader", "pmo_member")
+        }
     )
 
 
@@ -108,7 +116,11 @@ async def test_seeded_kora_root_and_single_pmo(db_session: AsyncSession) -> None
     kora = await db_session.get_one(OrgUnit, KORA_UNIT_ID)
     pmo = await db_session.get_one(OrgUnit, PMO_UNIT_ID)
     assert (kora.kind, kora.name, kora.status) == (UnitKind.ORGANIZATION, "KORA", UnitStatus.ACTIVE)
-    assert (pmo.kind, pmo.name, pmo.status) == (UnitKind.PMO, "PMO", UnitStatus.ACTIVE)
+    assert (pmo.kind, pmo.name, pmo.status) == (
+        UnitKind.PMO,
+        "مكتب إدارة المشروع (PMO)",
+        UnitStatus.ACTIVE,
+    )
     pmo_parent = await db_session.scalar(
         select(OrgUnitPlacement.parent_id).where(
             OrgUnitPlacement.unit_id == PMO_UNIT_ID, OrgUnitPlacement.valid_to.is_(None)

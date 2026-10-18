@@ -94,16 +94,16 @@ export const ar: Record<MessageKey, string> = {
   'perm.calendar.create': 'إنشاء أحداث التقويم',
   'perm.calendar.manage': 'إدارة أحداث التقويم',
 
-  'role.event_project_leader': 'قائد الحدث/المشروع',
-  'role.deputy_leader': 'نائب القائد',
-  'role.pmo_leader': 'قائد مكتب إدارة المشاريع',
-  'role.pmo_member': 'عضو مكتب إدارة المشاريع',
-  'role.administration_manager': 'مدير إدارة',
-  'role.team_leader': 'قائد فريق',
+  'role.event_project_leader': 'قائد الحدث',
+  'role.deputy_leader': 'نائب قائد الحدث',
+  'role.pmo_leader': 'مدير المشروع',
+  'role.pmo_member': 'مسؤول متابعة',
+  'role.administration_manager': 'مدير الإدارة',
+  'role.team_leader': 'قائد الفريق',
   'role.member': 'عضو',
 
   'unit.kind.organization': 'المنظمة',
-  'unit.kind.pmo': 'مكتب إدارة المشاريع',
+  'unit.kind.pmo': 'مكتب إدارة المشروع (PMO)',
   'unit.kind.administration': 'إدارة',
   'unit.kind.team': 'فريق',
 
@@ -363,7 +363,10 @@ export const ar: Record<MessageKey, string> = {
   'tasks.assignees.none': 'لا مكلّفين (أُزيلوا تلقائيًا).',
   'tasks.assignees.pick': 'اختر عضوًا…',
   'tasks.assignees.all': 'تحديد الكل',
-  'tasks.assignees.leadership': 'قائد الحدث ونائبه (يُكلَّفان من القادة والمدراء فقط، ولا يشملهما تحديد الكل)',
+  'tasks.fromOutside': 'من خارج الهيكل',
+  'tasks.assignees.other': 'أخرى: تكليف شخص من خارج فريقك',
+  'tasks.assignees.otherHint': 'اختر أي شخص من خارج نطاقك، مثل قائد الحدث أو نائبه أو عضو في فريق آخر.',
+  'tasks.assignees.externalChip': 'من خارج الفريق',
   'tasks.assignees.clear': 'إلغاء تحديد الكل',
   'tasks.assignees.removeTitle': 'إزالة {name}؟',
   'tasks.assignees.removeBody': 'لن يبقى مكلّفًا بهذه المهمة. يجب أن تحتفظ المهمة بمكلّف واحد على الأقل عند الإزالة اليدوية.',
@@ -540,6 +543,26 @@ export const ar: Record<MessageKey, string> = {
   'home.notifications.view': 'فتح الإشعارات',
 
   'cal.title': 'التقويم',
+
+  'cal.view.mine': 'مهامي',
+
+  'cal.view.administration': 'مهام الإدارة',
+
+  'cal.view.all': 'التقويم الكامل',
+
+  'cal.filter.administration': 'الإدارة',
+
+  'cal.filter.allAdministrations': 'كل الإدارات',
+
+  'cal.filter.status': 'الحالة',
+
+  'cal.filter.allStatuses': 'كل الحالات',
+
+  'cal.myTeam': 'فريقي',
+
+  'perm.calendar.view_administration': 'عرض تقويم مهام الإدارة',
+
+  'perm.calendar.view_all': 'عرض التقويم الكامل لكل الإدارات',
   'cal.description': 'الأحداث والاجتماعات ومواعيد استحقاق مهامك.',
   'cal.prev': 'الشهر السابق',
   'cal.next': 'الشهر التالي',

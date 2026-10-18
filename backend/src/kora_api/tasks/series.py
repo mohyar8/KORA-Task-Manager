@@ -105,11 +105,9 @@ async def create_series(
     due_times = occurrence_due_times(fields.due_at, ends_at)
     await service.require_creator(db, actor, scope_unit_id)
     units = await org.current_units(db)
-    await service.require_eligible(db, assignee_member_ids, scope_unit_id, units, actor.member)
+    await service.require_eligible(db, assignee_member_ids, scope_unit_id, units)
     for template in subtasks:
-        await service.require_eligible(
-            db, template.assignee_member_ids, scope_unit_id, units, actor.member
-        )
+        await service.require_eligible(db, template.assignee_member_ids, scope_unit_id, units)
 
     assert actor.member_id is not None
     subtasks = [replace(template, key=uuid.uuid4()) for template in subtasks]
@@ -215,14 +213,12 @@ async def update_series(
     previous = _series_state(series)
     units = await org.current_units(db)
     if assignee_member_ids is not None:
-        await service.require_eligible(
-            db, assignee_member_ids, series.scope_unit_id, units, actor.member
-        )
+        await service.require_eligible(db, assignee_member_ids, series.scope_unit_id, units)
         series.assignee_member_ids = list(assignee_member_ids)
     templates: list[SubtaskTemplate] | None = None
     previous_templates = list(series.subtask_templates)
     if subtasks is not None:
-        templates = await _replace_templates(db, series, subtasks, units, actor.member)
+        templates = await _replace_templates(db, series, subtasks, units)
     content_changed = series.subtask_templates != previous_templates or any(
         getattr(series, name) != changes[name]
         for name in ("title", "description", "priority")
@@ -380,7 +376,6 @@ async def _replace_templates(
     series: TaskSeries,
     subtasks: Sequence[SubtaskTemplate],
     units: Mapping[uuid.UUID, UnitInfo],
-    assigner: org.MemberPosition | None = None,
 ) -> list[SubtaskTemplate]:
     known = {t.key for t in map(SubtaskTemplate.from_json, series.subtask_templates) if t.key}
     keys = [t.key for t in subtasks if t.key is not None]
@@ -388,7 +383,7 @@ async def _replace_templates(
         raise InvalidTaskError("Unknown or repeated subtask template key.")
     for template in subtasks:
         await service.require_eligible(
-            db, template.assignee_member_ids, series.scope_unit_id, units, assigner
+            db, template.assignee_member_ids, series.scope_unit_id, units
         )
     templates = [t if t.key else replace(t, key=uuid.uuid4()) for t in subtasks]
     series.subtask_templates = [t.as_json() for t in templates]

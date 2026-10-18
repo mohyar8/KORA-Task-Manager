@@ -1,5 +1,6 @@
 import uuid
 from collections.abc import Awaitable
+from typing import Literal
 
 from fastapi import APIRouter, HTTPException, status
 
@@ -37,10 +38,15 @@ members_router = APIRouter(prefix="/admin/members", tags=["admin"], responses=AU
 
 
 @directory_router.get("")
-async def list_directory(access: CurrentAccess, db: DbSession) -> list[DirectoryMemberResponse]:
+async def list_directory(
+    access: CurrentAccess, db: DbSession, scope: Literal["mine", "all"] = "mine"
+) -> list[DirectoryMemberResponse]:
     """Active Members within the scope of any unit where the caller holds an operational
-    permission, plus the caller's own record. No contact details."""
-    entries = await queries.member_directory(db, access.snapshot, access.account.id)
+    permission, plus the caller's own record. No contact details. `scope=all` (callers who can
+    create tasks) lists every active Member, for assigning someone outside the caller's scope."""
+    entries = await queries.member_directory(
+        db, access.snapshot, access.account.id, include_all=scope == "all"
+    )
     return [
         DirectoryMemberResponse(
             id=e.member_id,

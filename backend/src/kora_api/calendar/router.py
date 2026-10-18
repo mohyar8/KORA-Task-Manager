@@ -155,6 +155,26 @@ class TaskDueItem(BaseModel):
     scope_unit_id: uuid.UUID
 
 
+class BroadTaskItem(BaseModel):
+    """A task due date in the Administration / all calendars (read-only)."""
+
+    task_id: uuid.UUID
+    title: str
+    due_at: datetime
+    status: TaskStatus
+    scope_unit_id: uuid.UUID
+    unit_name: str
+    administration_id: uuid.UUID | None
+    administration_name: str | None
+    from_outside: bool
+
+
+class BroadCalendarResponse(BaseModel):
+    starts_at: datetime
+    ends_at: datetime
+    tasks: list[BroadTaskItem]
+
+
 class EventItem(EventResponse):
     item_type: Literal["event"] = "event"
 
@@ -246,6 +266,53 @@ async def my_calendar(
             if v.task.due_at is not None
         ],
     )
+
+
+async def _broad(
+    scope: str, access: CurrentAccess, db: DbSession, starts_at: datetime, ends_at: datetime
+) -> BroadCalendarResponse:
+    start, end = _range(starts_at, ends_at)
+    found = await service.broad_calendar(db, access, scope, start, end)
+    return BroadCalendarResponse(
+        starts_at=start,
+        ends_at=end,
+        tasks=[
+            BroadTaskItem(
+                task_id=b.task.id,
+                title=b.task.title,
+                due_at=b.task.due_at,
+                status=b.task.status,
+                scope_unit_id=b.task.scope_unit_id,
+                unit_name=b.unit_name,
+                administration_id=b.administration_id,
+                administration_name=b.administration_name,
+                from_outside=b.task.from_outside,
+            )
+            for b in found
+        ],
+    )
+
+
+@router.get("/administration", responses=errors(422))
+async def administration_calendar(
+    access: CurrentAccess,
+    db: DbSession,
+    starts_at: Annotated[datetime, Query(alias="from")],
+    ends_at: Annotated[datetime, Query(alias="to")],
+) -> BroadCalendarResponse:
+    """Task due dates of the caller's whole Administration (`calendar.view_administration`)."""
+    return await _broad("administration", access, db, starts_at, ends_at)
+
+
+@router.get("/all", responses=errors(422))
+async def all_calendar(
+    access: CurrentAccess,
+    db: DbSession,
+    starts_at: Annotated[datetime, Query(alias="from")],
+    ends_at: Annotated[datetime, Query(alias="to")],
+) -> BroadCalendarResponse:
+    """Task due dates of every Administration (`calendar.view_all`)."""
+    return await _broad("all", access, db, starts_at, ends_at)
 
 
 @router.get("/events")

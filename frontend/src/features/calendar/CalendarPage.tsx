@@ -5,9 +5,10 @@ import { useI18n } from '@/shared/i18n/i18n'
 import { Button } from '@/shared/ui/Button'
 import { Chip, ErrorState, Skeleton, useToast } from '@/shared/ui/Feedback'
 import { PageHeader } from '@/shared/ui/Layout'
-import { allowedUnits } from '@/features/auth/permissions'
+import { allowedUnits, canAnywhere } from '@/features/auth/permissions'
 import { useSession } from '@/features/auth/session'
 import { currentMonth, groupByDay, isMonth, monthRange, shiftMonth, useCreateEvent, useMyCalendar, type AgendaItem } from './api'
+import { BroadCalendar } from './BroadCalendar'
 import { EventFormModal } from './EventForm'
 import styles from './calendar.module.css'
 
@@ -23,6 +24,13 @@ export function CalendarPage() {
   const month = isMonth(requested) ? requested : currentMonth()
   const { from, to } = monthRange(month)
   const query = useMyCalendar(from, to)
+  const views = [
+    { key: 'mine', label: t('cal.view.mine') },
+    ...(canAnywhere(access, 'calendar.view_administration') ? [{ key: 'administration', label: t('cal.view.administration') }] : []),
+    ...(canAnywhere(access, 'calendar.view_all') ? [{ key: 'all', label: t('cal.view.all') }] : []),
+  ]
+  const requestedView = params.get('v')
+  const view = views.find((v) => v.key === requestedView)?.key ?? 'mine'
   const create = useCreateEvent()
   const [creating, setCreating] = useState(false)
   const [picked, setPicked] = useState<string | null>(null)
@@ -47,7 +55,7 @@ export function CalendarPage() {
 
   const go = (next: string) => {
     setPicked(null)
-    setParams({ m: next }, { replace: true })
+    setParams(view === 'mine' ? { m: next } : { m: next, v: view }, { replace: true })
   }
   const creatable = allowedUnits(access, 'calendar.create').map((u) => ({ id: u.unit_id, name: u.name }))
   const canCreate = !!account?.member_id && creatable.length > 0
@@ -64,8 +72,25 @@ export function CalendarPage() {
       <PageHeader
         title={t('cal.title')}
         description={t('cal.description')}
-        actions={canCreate && <Button onClick={() => { create.reset(); setCreating(true) }}><Plus size={18} aria-hidden="true" /> {t('cal.new')}</Button>}
+        actions={view === 'mine' && canCreate && <Button onClick={() => { create.reset(); setCreating(true) }}><Plus size={18} aria-hidden="true" /> {t('cal.new')}</Button>}
       />
+
+      {views.length > 1 && (
+        <div className={styles.tabs} role="tablist" aria-label={t('cal.title')}>
+          {views.map((v) => (
+            <button
+              key={v.key}
+              type="button"
+              role="tab"
+              aria-selected={v.key === view}
+              className={`${styles.tab} ${v.key === view ? styles.tabOn : ''}`}
+              onClick={() => { setPicked(null); setParams(v.key === 'mine' ? { m: month } : { m: month, v: v.key }, { replace: true }) }}
+            >
+              {v.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       <div className={styles.monthBar}>
         <div className={styles.nav}>
@@ -76,9 +101,10 @@ export function CalendarPage() {
         <Button variant="ghost" onClick={() => go(currentMonth())}>{t('cal.today')}</Button>
       </div>
 
-      {query.isPending && <Skeleton lines={8} />}
-      {query.isError && <ErrorState error={query.error} onRetry={() => void query.refetch()} />}
-      {query.data && (
+      {view !== 'mine' && <BroadCalendar scope={view as 'administration' | 'all'} month={month} from={from} to={to} />}
+      {view === 'mine' && query.isPending && <Skeleton lines={8} />}
+      {view === 'mine' && query.isError && <ErrorState error={query.error} onRetry={() => void query.refetch()} />}
+      {view === 'mine' && query.data && (
         <div className={styles.layout}>
           <div className={styles.gridWrap} role="group" aria-label={monthLabel}>
             <div className={styles.weekdays} aria-hidden="true">

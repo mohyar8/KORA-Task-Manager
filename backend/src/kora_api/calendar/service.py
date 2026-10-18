@@ -537,3 +537,65 @@ async def _notify(
         kind=kind,
         summary=event.title,
     )
+
+
+# --- Broad task calendars (Administration / all) ------------------------------------------------
+
+VIEW_ADMINISTRATION = Permission.CALENDAR_VIEW_ADMINISTRATION
+VIEW_ALL = Permission.CALENDAR_VIEW_ALL
+
+
+@dataclass(frozen=True)
+class BroadTask:
+    task: Any
+    unit_name: str
+    administration_id: uuid.UUID | None
+    administration_name: str | None
+
+
+def _administration_of(unit_id: uuid.UUID, units: Mapping[uuid.UUID, UnitInfo]) -> UnitInfo | None:
+    for candidate in org.unit_chain(unit_id, units):
+        if units[candidate].kind == "administration":
+            return units[candidate]
+    return None
+
+
+async def broad_calendar(
+    db: AsyncSession,
+    access: AccessContext,
+    scope: str,
+    starts_at: datetime,
+    ends_at: datetime,
+) -> list[BroadTask]:
+    """Due dates of every task in the Administrations the caller may see.
+
+    `administration`: the Administration containing each unit where the caller holds
+    `calendar.view_administration`. `all`: every unit, for `calendar.view_all`. Titles, status and
+    placement only; opening a task still needs normal task access.
+    """
+    snapshot = access.snapshot
+    units = await org.current_units(db)
+    if scope == "all":
+        held = snapshot.units_with(VIEW_ALL)
+        if not held:
+            raise AccessDeniedError(VIEW_ALL, None)
+        wanted = set(units)
+    else:
+        held = snapshot.units_with(VIEW_ADMINISTRATION)
+        admin_ids = {a.id for u in held if (a := _administration_of(u, units)) is not None}
+        if not admin_ids:
+            raise AccessDeniedError(VIEW_ADMINISTRATION, None)
+        wanted = {u for u in units if admin_ids & set(org.unit_chain(u, units))}
+    tasks_found = await tasks.tasks_due_in_units(db, wanted, starts_at, ends_at)
+    result: list[BroadTask] = []
+    for task in tasks_found:
+        administration = _administration_of(task.scope_unit_id, units)
+        result.append(
+            BroadTask(
+                task,
+                units[task.scope_unit_id].name,
+                administration.id if administration else None,
+                administration.name if administration else None,
+            )
+        )
+    return result

@@ -102,7 +102,7 @@ export function EventFormModal({ title, submitLabel, initial, scopeOptions, load
             {scopeOptions.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
           </SelectField>
         )}
-        {scopeOptions && <AssigneePicker legend={t('cal.field.invitees')} selected={invitees} onChange={setInvitees} error={show(problems.invitees)} />}
+        {scopeOptions && <AssigneePicker includeTopRoles legend={t('cal.field.invitees')} selected={invitees} onChange={setInvitees} error={show(problems.invitees)} />}
         <InlineError error={error} />
       </div>
     </Modal>

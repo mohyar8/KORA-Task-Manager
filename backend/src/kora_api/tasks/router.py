@@ -18,6 +18,7 @@ from kora_api.tasks.schemas import (
     CreateSeriesRequest,
     CreateSubtaskRequest,
     CreateTaskRequest,
+    ExternalAssigneeResponse,
     MoveTaskRequest,
     SeriesResponse,
     StatusRequest,
@@ -76,6 +77,7 @@ async def create_task(
             scope_unit_id=body.scope_unit_id,
             fields=_fields(body),
             assignee_member_ids=body.assignee_member_ids,
+            external_member_ids=body.external_assignee_member_ids,
         )
     )
     return _task(view)
@@ -108,7 +110,9 @@ async def add_assignee(
     task_id: uuid.UUID, body: AssigneeRequest, access: CurrentAccess, db: DbSession
 ) -> TaskResponse:
     actor = await service.actor_for(db, access)
-    return _task(await _call(service.add_assignee(db, actor, task_id, body.member_id)))
+    return _task(
+        await _call(service.add_assignee(db, actor, task_id, body.member_id, body.external))
+    )
 
 
 @tasks_router.post("/{task_id}/assignees/{member_id}/remove", responses=errors(404, 422))
@@ -150,6 +154,7 @@ async def create_subtask(
             task_id,
             fields=_fields(body),
             assignee_member_ids=body.assignee_member_ids,
+            external_member_ids=body.external_assignee_member_ids,
         )
     )
     return _task(view)
@@ -308,10 +313,15 @@ def _task(view: service.TaskView) -> TaskResponse:
         series_id=t.series_id,
         created_by_account_id=t.created_by_account_id,
         created_by_member_id=t.created_by_member_id,
+        from_outside=t.from_outside,
         created_at=t.created_at,
         updated_at=t.updated_at,
         started_at=t.started_at,
         assignee_member_ids=sorted(view.assignee_member_ids, key=str),
+        external_assignees=[
+            ExternalAssigneeResponse(id=member_id, full_name=name)
+            for member_id, name in sorted(view.external.items(), key=lambda kv: str(kv[0]))
+        ],
     )
 
 
