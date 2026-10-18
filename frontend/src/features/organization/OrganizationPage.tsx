@@ -52,7 +52,8 @@ export function OrganizationPage() {
   if (units.isPending) return <Skeleton lines={6} />
   if (units.isError) return <ErrorState error={units.error} onRetry={() => void units.refetch()} />
 
-  const all = units.data
+  // Deleted (archived) units disappear from the tree; their history stays in the data.
+  const all = units.data.filter((u) => u.status === 'active')
   const ids = new Set(all.map((u) => u.id))
   const childrenOf = (id: string) => all.filter((u) => u.parent_id === id).sort((a, b) => a.name.localeCompare(b.name))
   // A unit whose parent the caller does not manage is shown as a root of its own subtree.

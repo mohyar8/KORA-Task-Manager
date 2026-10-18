@@ -49,6 +49,7 @@ from kora_api.tasks.models import (
 )
 
 VIEW, CREATE, MANAGE = Permission.TASK_VIEW, Permission.TASK_CREATE, Permission.TASK_MANAGE
+FOLLOW = Permission.TASK_FOLLOW
 
 
 class TaskNotFoundError(Exception):
@@ -111,13 +112,23 @@ def is_assignee(actor: TaskActor, assignees: frozenset[uuid.UUID]) -> bool:
     return actor.member_id is not None and actor.member_id in assignees
 
 
+def follows(actor: TaskActor) -> bool:
+    """Follow-up (PMO): read access to every task, held at any unit."""
+    return bool(actor.snapshot.units_with(FOLLOW))
+
+
 def can_view(actor: TaskActor, task: Task, assignees: frozenset[uuid.UUID]) -> bool:
     decision = actor.snapshot.decide(VIEW, task.scope_unit_id)
     if decision.allowed:
         return True
     if decision.source == DecisionSource.OVERRIDE_DENY:
         return False
-    return is_manager(actor, task) or is_creator(actor, task) or is_assignee(actor, assignees)
+    return (
+        is_manager(actor, task)
+        or is_creator(actor, task)
+        or is_assignee(actor, assignees)
+        or follows(actor)
+    )
 
 
 def can_administer(actor: TaskActor, task: Task) -> bool:
@@ -236,6 +247,52 @@ async def list_tasks(
         for t in tasks
         if can_view(actor, t, assignees[t.id])
     ]
+
+
+@dataclass(frozen=True)
+class FollowItem:
+    view: TaskView
+    unit_name: str
+    administration_id: uuid.UUID | None
+    administration_name: str | None
+    assignee_names: list[str]
+
+
+async def follow_tasks(
+    db: AsyncSession, actor: TaskActor, *, status: TaskStatus | None = None
+) -> list[FollowItem]:
+    """Every top-level task of every team, for the PMO's follow-up page (read-only)."""
+    if not follows(actor):
+        raise AccessDeniedError(FOLLOW, None)
+    stmt = select(Task).where(Task.parent_id.is_(None))
+    if status is not None:
+        stmt = stmt.where(Task.status == status)
+    tasks = list(await db.scalars(stmt.order_by(Task.due_at.nulls_last(), Task.created_at)))
+    assignees = await assignees_of(db, (t.id for t in tasks))
+    externals = await externals_of(db, (t.id for t in tasks))
+    units = await org.current_units(db)
+    names = await org.member_names(db, {m for ids in assignees.values() for m in ids})
+    items: list[FollowItem] = []
+    for task in tasks:
+        administration = next(
+            (
+                units[u]
+                for u in org.unit_chain(task.scope_unit_id, units)
+                if units[u].kind == "administration"
+            ),
+            None,
+        )
+        unit = units.get(task.scope_unit_id)
+        items.append(
+            FollowItem(
+                TaskView(task, assignees[task.id], externals[task.id]),
+                unit.name if unit else "",
+                administration.id if administration else None,
+                administration.name if administration else None,
+                sorted(names.get(m, "") for m in assignees[task.id]),
+            )
+        )
+    return items
 
 
 async def due_tasks(

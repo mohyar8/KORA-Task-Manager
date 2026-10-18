@@ -13,6 +13,17 @@ export interface TaskFilters {
 export const useTasks = (filters: TaskFilters) =>
   useQuery({ queryKey: [...tasksKey, 'list', filters], queryFn: () => http.get<Task[]>('/tasks', { ...filters }) })
 
+export interface FollowTask extends Task {
+  unit_name: string
+  administration_id: string | null
+  administration_name: string | null
+  assignee_names: string[]
+}
+
+/** PMO follow-up: every team's tasks (read-only), `task.follow` only. */
+export const useFollowTasks = (status?: string) =>
+  useQuery({ queryKey: [...tasksKey, 'follow', status ?? ''], queryFn: () => http.get<FollowTask[]>('/tasks/follow', { status }) })
+
 export const useTask = (id: string) => useQuery({ queryKey: [...tasksKey, id], queryFn: () => http.get<Task>(`/tasks/${id}`) })
 
 export const useSubtasks = (id: string) =>

@@ -19,6 +19,7 @@ from kora_api.tasks.schemas import (
     CreateSubtaskRequest,
     CreateTaskRequest,
     ExternalAssigneeResponse,
+    FollowTaskResponse,
     MoveTaskRequest,
     SeriesResponse,
     StatusRequest,
@@ -63,6 +64,27 @@ async def list_tasks(
     actor = await service.actor_for(db, access)
     views = await service.list_tasks(db, actor, status=status_filter, scope_unit_id=scope_unit_id)
     return [_task(view) for view in views]
+
+
+@tasks_router.get("/follow")
+async def follow_tasks(
+    access: CurrentAccess,
+    db: DbSession,
+    status_filter: Annotated[TaskStatus | None, Query(alias="status")] = None,
+) -> list[FollowTaskResponse]:
+    """Every team's tasks, read-only, for holders of `task.follow` (the PMO). 403 otherwise."""
+    actor = await service.actor_for(db, access)
+    items = await _call(service.follow_tasks(db, actor, status=status_filter))
+    return [
+        FollowTaskResponse(
+            **_task(item.view).model_dump(),
+            unit_name=item.unit_name,
+            administration_id=item.administration_id,
+            administration_name=item.administration_name,
+            assignee_names=item.assignee_names,
+        )
+        for item in items
+    ]
 
 
 @tasks_router.post("", status_code=status.HTTP_201_CREATED, responses=errors(422))

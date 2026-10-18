@@ -8,6 +8,7 @@ class Permission(enum.StrEnum):
     TASK_VIEW = "task.view"
     TASK_CREATE = "task.create"
     TASK_MANAGE = "task.manage"
+    TASK_FOLLOW = "task.follow"
     ANNOUNCEMENT_PUBLISH = "announcement.publish"
     ANNOUNCEMENT_MANAGE = "announcement.manage"
     CALENDAR_CREATE = "calendar.create"
@@ -21,6 +22,7 @@ PERMISSION_DESCRIPTIONS: dict[Permission, str] = {
     Permission.TASK_VIEW: "See tasks within scope.",
     Permission.TASK_CREATE: "Create tasks within scope (active Members only).",
     Permission.TASK_MANAGE: "Manage any task within scope.",
+    Permission.TASK_FOLLOW: "Follow up every task of every team (read-only).",
     Permission.ANNOUNCEMENT_PUBLISH: "Draft and publish announcements within scope.",
     Permission.ANNOUNCEMENT_MANAGE: "See, edit and withdraw announcements within scope.",
     Permission.CALENDAR_CREATE: "Create events and meetings within scope (active Members only).",

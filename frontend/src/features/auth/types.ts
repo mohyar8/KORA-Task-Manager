@@ -5,6 +5,7 @@ export type Permission =
   | 'task.view'
   | 'task.create'
   | 'task.manage'
+  | 'task.follow'
   | 'announcement.publish'
   | 'announcement.manage'
   | 'calendar.create'

@@ -74,6 +74,7 @@ async def test_seeded_catalog_matches_code(db_session: AsyncSession) -> None:
         "task.view",
         "task.create",
         "task.manage",
+        "task.follow",
         "announcement.publish",
         "announcement.manage",
         "calendar.create",
@@ -98,6 +99,7 @@ async def test_seeded_catalog_matches_code(db_session: AsyncSession) -> None:
         | {(role, "task.view") for role in every_role}
         | {(role, "task.create") for role in task_managers}
         | {(role, "task.manage") for role in task_managers}
+        | {("pmo_leader", "task.follow"), ("pmo_member", "task.follow")}
         | {(role, "announcement.publish") for role in task_managers}
         | {(role, "announcement.manage") for role in task_managers}
         | {(role, "calendar.create") for role in every_role}

@@ -200,3 +200,7 @@ Tests: 100 pass; all main routes re-checked at 375 px, no overflow.
 - Task badges: «من خارج الهيكل» (`from_outside`) on list, board and detail; «من خارج الفريق» chip on external assignees.
 - Calendar: tabs «مهامي» / «مهام الإدارة» / «التقويم الكامل» by `calendar.view_administration` / `calendar.view_all`; team colours (own team navy); the full view filters by Administration and status (`BroadCalendar.tsx`).
 - Role/unit names aligned with the organization's terms.
+
+## 2026-10-19
+- `/follow` (`FollowPage.tsx`, nav «المتابعة», `task.follow`): one section per team with filters by Administration, status and search; separate from the PMO's own /tasks list.
+- Organization: «أرشفة» is now «حذف» (same endpoint) and archived units are hidden from the tree.

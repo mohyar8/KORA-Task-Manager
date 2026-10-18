@@ -114,6 +114,15 @@ class TaskResponse(BaseModel):
     external_assignees: list[ExternalAssigneeResponse]
 
 
+class FollowTaskResponse(TaskResponse):
+    """A task on the follow-up page: with its team, Administration and assignee names."""
+
+    unit_name: str
+    administration_id: uuid.UUID | None
+    administration_name: str | None
+    assignee_names: list[str]
+
+
 class CommentResponse(BaseModel):
     id: uuid.UUID
     task_id: uuid.UUID

@@ -40,7 +40,7 @@ describe('Organization page', () => {
     await screen.findByText('Operations')
     expect(screen.getByRole('button', { name: /إضافة إدارة/ })).toBeInTheDocument() // on KORA
     expect(screen.getAllByRole('button', { name: /إضافة فريق/ })).toHaveLength(2) // on each administration
-    expect(screen.getAllByRole('button', { name: /^.*أرشفة$/ })).toHaveLength(3) // 2 administrations + 1 team, never KORA
+    expect(screen.getAllByRole('button', { name: /^.*حذف$/ })).toHaveLength(3) // 2 administrations + 1 team, never KORA
     expect(screen.getAllByRole('button', { name: /نقل/ })).toHaveLength(1) // only the team
   })
 
@@ -73,10 +73,10 @@ describe('Organization page', () => {
     api.on('POST /organization/units/u-adm/archive', { status: 409, body: { detail: 'Cannot archive: the unit still has active sub-units.' } })
     renderApp('/organization')
     const row = (await screen.findByText('Operations')).closest('div')!.parentElement!
-    await userEvent.click(within(row).getByRole('button', { name: /أرشفة/ }))
+    await userEvent.click(within(row).getByRole('button', { name: /حذف/ }))
     const dialog = await screen.findByRole('dialog')
     expect(within(dialog).getByText(/يبقى سجلها محفوظًا/)).toBeInTheDocument()
-    await userEvent.click(within(dialog).getByRole('button', { name: 'أرشفة' }))
+    await userEvent.click(within(dialog).getByRole('button', { name: 'حذف' }))
     expect(await within(dialog).findByRole('alert')).toHaveTextContent('Cannot archive: the unit still has active sub-units.')
   })
 

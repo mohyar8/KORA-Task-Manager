@@ -1,4 +1,4 @@
-import { CalendarDays, ScrollText, Home, ListTodo, Megaphone, Network, ShieldCheck, Users, type LucideIcon } from 'lucide-react'
+import { CalendarDays, ClipboardCheck, ScrollText, Home, ListTodo, Megaphone, Network, ShieldCheck, Users, type LucideIcon } from 'lucide-react'
 import type { MessageKey } from '@/shared/i18n/messages.en'
 import { canAnywhere } from '@/features/auth/permissions'
 import type { EffectiveAccess, Permission } from '@/features/auth/types'
@@ -20,6 +20,7 @@ export interface NavItem {
 export const navItems: NavItem[] = [
   { to: '/', labelKey: 'nav.home', icon: Home },
   { to: '/tasks', labelKey: 'nav.tasks', icon: ListTodo, permission: 'task.view' },
+  { to: '/follow', labelKey: 'nav.follow', icon: ClipboardCheck, permission: 'task.follow' },
   { to: '/calendar', labelKey: 'nav.calendar', icon: CalendarDays },
   { to: '/announcements', labelKey: 'nav.announcements', icon: Megaphone },
   { to: '/organization', labelKey: 'nav.organization', icon: Network, permission: 'organization.manage' },

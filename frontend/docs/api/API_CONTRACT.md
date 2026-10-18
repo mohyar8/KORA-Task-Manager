@@ -674,3 +674,7 @@ Guards: **session** = AuthenticatedSession (a temporary password is allowed); **
 - New permissions `calendar.view_administration` (default: Team Leader, Administration Manager) and `calendar.view_all` (default: Event Leader, Deputy, PMO Leader, PMO Member), grantable by overrides.
 - `GET /calendar/administration?from&to` and `GET /calendar/all?from&to` (403 without the permission): `{starts_at, ends_at, tasks: [{task_id, title, due_at, status, scope_unit_id, unit_name, administration_id|null, administration_name|null, from_outside}]}`. The first covers the Administration containing each unit where the caller holds the permission; the second every unit.
 - Arabic names: قائد الحدث، نائب قائد الحدث، مدير المشروع (PMO Leader)، مسؤول متابعة (PMO Member)، مدير الإدارة، قائد الفريق؛ the PMO unit is named «مكتب إدارة المشروع (PMO)».
+
+## Addendum 2026-10-19
+- New permission `task.follow` (default: PMO Leader, PMO Member; grantable): read access to every task, held at any unit. `GET /tasks/follow?status=` (403 without it) returns `FollowTaskResponse[]` = `TaskResponse` + `unit_name`, `administration_id|null`, `administration_name|null`, `assignee_names: string[]`. Followers can open tasks but cannot edit, change status or comment; the normal `GET /tasks` list is unchanged (the PMO's own tasks only).
+- Deleting a team is the existing archive operation (`POST /organization/units/{id}/archive`), presented as «حذف»; archived units are hidden from the UI and their history is kept (audit records reference units, so a physical delete is not possible).

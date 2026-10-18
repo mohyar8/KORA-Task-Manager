@@ -41,6 +41,7 @@ export const routes: RouteObject[] = [
           { path: 'account', element: <AccountPage /> },
           { path: 'not-available', element: <GapsPage /> },
           page('tasks', () => import('@/features/tasks/TasksPage'), 'TasksPage'),
+          page('follow', () => import('@/features/tasks/FollowPage'), 'FollowPage'),
           page('tasks/:taskId', () => import('@/features/tasks/TaskDetailPage'), 'TaskDetailPage'),
           page('task-series/:seriesId', () => import('@/features/tasks/SeriesPage'), 'SeriesPage'),
           page('calendar', () => import('@/features/calendar/CalendarPage'), 'CalendarPage'),
