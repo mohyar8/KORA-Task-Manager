@@ -81,6 +81,7 @@ async def test_seeded_catalog_matches_code(db_session: AsyncSession) -> None:
         "calendar.manage",
         "calendar.view_administration",
         "calendar.view_all",
+        "league.manage",
     }
 
     roles = {r.key: (r.name, r.unit_kind) for r in await db_session.scalars(select(OrgRole))}
@@ -100,6 +101,7 @@ async def test_seeded_catalog_matches_code(db_session: AsyncSession) -> None:
         | {(role, "task.create") for role in task_managers}
         | {(role, "task.manage") for role in task_managers}
         | {("pmo_leader", "task.follow"), ("pmo_member", "task.follow")}
+        | {("pmo_leader", "league.manage")}
         | {(role, "announcement.publish") for role in task_managers}
         | {(role, "announcement.manage") for role in task_managers}
         | {(role, "calendar.create") for role in every_role}

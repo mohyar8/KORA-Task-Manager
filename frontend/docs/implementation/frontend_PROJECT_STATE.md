@@ -204,3 +204,5 @@ Tests: 100 pass; all main routes re-checked at 375 px, no overflow.
 ## 2026-10-19
 - `/follow` (`FollowPage.tsx`, nav «المتابعة», `task.follow`): one section per team with filters by Administration, status and search; separate from the PMO's own /tasks list.
 - Organization: «أرشفة» is now «حذف» (same endpoint) and archived units are hidden from the tree.
+
+- `/league` (`features/league`, nav «دوري كورة», visible to all): hero with the ball mark and ribbons, ranked rows with progress bars and count-up points; the PMO Leader (`league.manage`) edits the round title and points with steppers. `kora-ball.svg` was removed (traced inverted); `shared/brand/BallMark.tsx` holds the ball.

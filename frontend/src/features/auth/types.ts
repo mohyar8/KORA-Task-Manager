@@ -12,6 +12,7 @@ export type Permission =
   | 'calendar.manage'
   | 'calendar.view_administration'
   | 'calendar.view_all'
+  | 'league.manage'
 
 export type UnitKind = 'organization' | 'pmo' | 'administration' | 'team'
 export type DecisionSource = 'override_deny' | 'override_grant' | 'role_default' | 'none'

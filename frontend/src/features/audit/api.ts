@@ -46,7 +46,7 @@ export const KNOWN_ACTIONS = [
   'role_default.created', 'role_default.ended', 'permission_override.created', 'permission_override.ended',
   'org_unit.created', 'org_unit.moved', 'org_unit.archived',
   'member.provisioned', 'member.profile_updated', 'member.team_changed', 'member.role_changed', 'member.deactivated', 'member.reactivated',
-  'task.created', 'task.updated', 'task.status_changed', 'task.cancelled', 'task.reopened', 'task.moved', 'task.assignee_added', 'task.assignee_removed',
+  'league.updated', 'task.created', 'task.updated', 'task.status_changed', 'task.cancelled', 'task.reopened', 'task.moved', 'task.assignee_added', 'task.assignee_removed',
   'task_comment.created', 'task_comment.edited', 'task_comment.deleted',
   'task_series.created', 'task_series.updated', 'task_series.moved', 'task_series.stopped', 'task_series.assignees_removed',
   'announcement.draft_created', 'announcement.published', 'announcement.edited', 'announcement.withdrawn',

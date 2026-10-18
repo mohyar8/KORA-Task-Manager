@@ -678,3 +678,7 @@ Guards: **session** = AuthenticatedSession (a temporary password is allowed); **
 ## Addendum 2026-10-19
 - New permission `task.follow` (default: PMO Leader, PMO Member; grantable): read access to every task, held at any unit. `GET /tasks/follow?status=` (403 without it) returns `FollowTaskResponse[]` = `TaskResponse` + `unit_name`, `administration_id|null`, `administration_name|null`, `assignee_names: string[]`. Followers can open tasks but cannot edit, change status or comment; the normal `GET /tasks` list is unchanged (the PMO's own tasks only).
 - Deleting a team is the existing archive operation (`POST /organization/units/{id}/archive`), presented as «حذف»; archived units are hidden from the UI and their history is kept (audit records reference units, so a physical delete is not possible).
+
+## 16. KORA league (2026-10-19)
+- `GET /league` (any signed-in account) → `{round_title|null, updated_at|null, standings: [{rank, team_id, team_name, administration_name|null, points}]}`: every active Team ordered by points (desc) then name; rank is sequential; Teams without an entry have 0.
+- `PUT /league` (`league.manage`; default PMO Leader, grantable) body `{round_title?: string(≤100), points: [{team_id, points 0–9999}]}` → the new `LeagueResponse`; 403 without the permission, 422 for an unknown/inactive Team or points out of range. Records one `league.updated` audit record (round title, changed Team ids, `team_id:points`) only when something changed.

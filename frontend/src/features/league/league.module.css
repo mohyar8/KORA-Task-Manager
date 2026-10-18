@@ -1,0 +1,29 @@
+.page { display: grid; gap: var(--space-5); max-inline-size: 760px; margin-inline: auto; }
+.hero { position: relative; overflow: hidden; display: grid; justify-items: center; gap: var(--space-3); padding: var(--space-7) var(--space-5) var(--space-6); border-radius: var(--radius-large); background: radial-gradient(120% 90% at 50% 0%, #a24ba8 0%, var(--kora-fuchsia) 45%, #5f2766 100%); color: #fff; box-shadow: 0 24px 48px -24px rgb(95 39 102 / 0.8); }
+.hero::after { content: ''; position: absolute; inset: 0; background: url('@/shared/brand/pattern-9.svg') center / 340px repeat; opacity: 0.07; pointer-events: none; }
+.ball { inline-size: 150px; color: #fff; filter: drop-shadow(0 8px 14px rgb(0 0 0 / 0.25)); animation: bob 4s ease-in-out infinite; }
+@keyframes bob { 0%, 100% { transform: translateY(0) rotate(-2deg); } 50% { transform: translateY(-6px) rotate(2deg); } }
+.ribbon { position: relative; z-index: 1; background: var(--kora-green); color: #fff; font-size: clamp(1.6rem, 6vw, 2.2rem); font-weight: 800; padding: var(--space-1) var(--space-7); transform: rotate(-2deg); box-shadow: 0 6px 0 rgb(0 0 0 / 0.18); }
+.tagline { position: relative; z-index: 1; background: var(--kora-navy); padding: var(--space-1) var(--space-5); font-weight: 600; transform: rotate(-1deg); }
+.round { position: relative; z-index: 1; margin-block-start: var(--space-3); padding: var(--space-2) var(--space-5); border-radius: 999px; background: rgb(45 59 112 / 0.85); color: #FFD84D; font-weight: 800; font-size: var(--text-lg, 1.15rem); border: 2px solid rgb(255 255 255 / 0.25); }
+.tools { display: grid; gap: var(--space-3); padding: var(--space-4); border: 1px dashed var(--ui-border); border-radius: var(--radius-card, 14px); background: var(--ui-surface); }
+.toolButtons { display: flex; gap: var(--space-3); justify-content: flex-end; }
+.table { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-3); }
+.row { --i: 1; display: grid; grid-template-columns: 44px 1fr auto; align-items: center; gap: var(--space-4); padding: var(--space-4) var(--space-5); border-radius: 20px; background: linear-gradient(100deg, var(--kora-fuchsia), #7b3482 60%, #4b2d6f); color: #fff; box-shadow: 0 10px 22px -14px rgb(95 39 102 / 0.9); animation: rowIn 0.5s ease both; animation-delay: calc(var(--i) * 45ms); }
+.first { background: linear-gradient(100deg, #5fb85a, var(--kora-green) 55%, #2f7d2c); box-shadow: 0 14px 28px -14px rgb(78 166 73 / 0.9); }
+@keyframes rowIn { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+.rank { display: grid; place-items: center; inline-size: 38px; block-size: 38px; border-radius: 50%; background: rgb(255 255 255 / 0.16); font-weight: 800; font-variant-numeric: tabular-nums; }
+.team { display: grid; gap: 2px; min-inline-size: 0; }
+.teamName { font-size: var(--text-lg, 1.1rem); font-weight: 700; overflow-wrap: anywhere; }
+.admin { font-size: var(--text-sm); opacity: 0.75; }
+.bar { display: block; block-size: 6px; border-radius: 999px; background: rgb(255 255 255 / 0.18); overflow: hidden; margin-block-start: 4px; }
+.bar i { display: block; block-size: 100%; border-radius: inherit; background: #fff; transition: inline-size 0.8s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.points { font-size: 1.7rem; font-weight: 800; font-variant-numeric: tabular-nums; min-inline-size: 2ch; text-align: end; }
+.stepper { display: inline-flex; align-items: center; gap: var(--space-2); }
+.step { inline-size: var(--min-target, 44px); block-size: var(--min-target, 44px); border-radius: 50%; border: 0; background: rgb(255 255 255 / 0.2); color: #fff; cursor: pointer; display: grid; place-items: center; }
+.step:hover { background: rgb(255 255 255 / 0.32); }
+.input { inline-size: 5ch; min-block-size: var(--min-target, 44px); text-align: center; font: inherit; font-weight: 800; font-size: 1.2rem; border-radius: 12px; border: 2px solid rgb(255 255 255 / 0.5); background: rgb(255 255 255 / 0.12); color: #fff; }
+.updated { text-align: center; color: var(--ui-muted); font-size: var(--text-sm); margin: 0; }
+.footer { text-align: center; font-weight: 700; color: var(--kora-navy); margin: 0; }
+@media (max-width: 520px) { .row { grid-template-columns: 38px 1fr auto; padding: var(--space-3) var(--space-4); gap: var(--space-3); } .ball { inline-size: 110px; } .ribbon { padding-inline: var(--space-5); } }
+@media (prefers-reduced-motion: reduce) { .ball, .row { animation: none; } .bar i { transition: none; } }

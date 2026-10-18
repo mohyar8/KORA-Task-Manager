@@ -303,3 +303,7 @@ To be scoped. Candidates include reminders, task workspaces and analytics, and t
 ## 2026-10-19 — PMO follow-up
 - Migration a7c9e1f3b5d6 seeds `task.follow` (PMO Leader, PMO Member). `tasks.service.follow_tasks` / `GET /tasks/follow`; `can_view` also allows followers (read-only). Test: `tests/tasks/test_follow.py`.
 - Team "delete" stays an archive (audit FK); the UI hides archived units.
+
+## 2026-10-19 — KORA league
+- New domain `league` (`league_settings`, `league_entries`; migration b8d0f2a4c6e7 also seeds `league.manage` for the PMO Leader). `GET/PUT /api/v1/league`; audit action `league.updated`. Tests: `tests/league/test_league.py`.
+- Deleted (archived) units are no longer listed in the effective-access response, so pickers stop offering them.

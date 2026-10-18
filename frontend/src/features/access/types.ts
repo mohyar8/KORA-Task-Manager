@@ -32,6 +32,7 @@ export const PERMISSIONS: Permission[] = [
   'calendar.manage',
   'calendar.view_administration',
   'calendar.view_all',
+  'league.manage',
 ]
 
 export type OverrideEffect = 'grant' | 'deny'

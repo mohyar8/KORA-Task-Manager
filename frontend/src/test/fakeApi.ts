@@ -48,6 +48,7 @@ export function accessFor(allowed: string[] = []) {
   const perms = [
     'organization.manage', 'task.view', 'task.create', 'task.manage',
     'announcement.publish', 'announcement.manage', 'calendar.create', 'calendar.manage',
+    'task.follow', 'calendar.view_administration', 'calendar.view_all', 'league.manage',
   ]
   return {
     account_id: 'a1',

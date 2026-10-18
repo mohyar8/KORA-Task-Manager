@@ -44,6 +44,7 @@ export const routes: RouteObject[] = [
           page('follow', () => import('@/features/tasks/FollowPage'), 'FollowPage'),
           page('tasks/:taskId', () => import('@/features/tasks/TaskDetailPage'), 'TaskDetailPage'),
           page('task-series/:seriesId', () => import('@/features/tasks/SeriesPage'), 'SeriesPage'),
+          page('league', () => import('@/features/league/LeaguePage'), 'LeaguePage'),
           page('calendar', () => import('@/features/calendar/CalendarPage'), 'CalendarPage'),
           page('calendar/:eventId', () => import('@/features/calendar/EventDetailPage'), 'EventDetailPage'),
           page('announcements', () => import('@/features/announcements/AnnouncementsPage'), 'AnnouncementsPage'),

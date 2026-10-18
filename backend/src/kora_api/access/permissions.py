@@ -15,6 +15,7 @@ class Permission(enum.StrEnum):
     CALENDAR_MANAGE = "calendar.manage"
     CALENDAR_VIEW_ADMINISTRATION = "calendar.view_administration"
     CALENDAR_VIEW_ALL = "calendar.view_all"
+    LEAGUE_MANAGE = "league.manage"
 
 
 PERMISSION_DESCRIPTIONS: dict[Permission, str] = {
@@ -31,6 +32,7 @@ PERMISSION_DESCRIPTIONS: dict[Permission, str] = {
         "See the task calendar of the whole Administration that contains the unit."
     ),
     Permission.CALENDAR_VIEW_ALL: "See the task calendar of every Administration.",
+    Permission.LEAGUE_MANAGE: "Set the points and round title of the KORA league.",
 }
 
 

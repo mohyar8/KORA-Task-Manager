@@ -12,6 +12,7 @@ from kora_api.audit import models as audit_models
 from kora_api.calendar import models as calendar_models
 from kora_api.core.config import get_settings
 from kora_api.core.database import Base
+from kora_api.league import models as league_models
 from kora_api.notifications import models as notifications_models
 from kora_api.organization import models as organization_models
 from kora_api.tasks import models as tasks_models
@@ -24,6 +25,7 @@ MODEL_MODULES = (
     announcements_models,
     notifications_models,
     calendar_models,
+    league_models,
     audit_models,
 )
 
