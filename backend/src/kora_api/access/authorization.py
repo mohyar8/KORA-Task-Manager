@@ -147,7 +147,11 @@ async def explain_access(
     """For every catalog permission, the decision (and what decided it) on every unit."""
     snapshot = await load_snapshot(db, facts, account_id, at)
     units = await facts.units_at(db, snapshot.at)
-    ordered = sorted(units.values(), key=lambda unit: (len(snapshot.chain(unit.id)), unit.name))
+    # Deleted (archived) units are not offered anywhere: they hold history only.
+    ordered = sorted(
+        (unit for unit in units.values() if unit.active),
+        key=lambda unit: (len(snapshot.chain(unit.id)), unit.name),
+    )
     return snapshot.at, {
         permission: [UnitDecision(unit, snapshot.decide(permission, unit.id)) for unit in ordered]
         for permission in Permission
