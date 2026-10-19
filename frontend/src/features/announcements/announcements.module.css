@@ -21,3 +21,5 @@
 .pick { display: flex; align-items: center; gap: var(--space-3); min-block-size: var(--min-target); padding-inline: var(--space-3); cursor: pointer; }
 .pick:hover { background: var(--ui-surface-soft); }
 .pick input { inline-size: 20px; block-size: 20px; accent-color: var(--kora-navy); }
+
+.pickAll { align-self: flex-start; background: none; border: 0; padding: var(--space-1) 0; color: var(--kora-fuchsia); font: inherit; font-weight: 600; cursor: pointer; text-decoration: underline; }

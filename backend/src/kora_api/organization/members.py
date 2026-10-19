@@ -9,7 +9,7 @@ KORA / the PMO / an Administration and may be held without any Team.
 import uuid
 from dataclasses import dataclass
 
-from sqlalchemy import select
+from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kora_api.access import service as access_service
@@ -83,8 +83,38 @@ async def get_member(db: AsyncSession, member_id: uuid.UUID) -> MemberView:
 
 
 async def list_members(db: AsyncSession) -> list[MemberView]:
-    members = await db.scalars(select(Member).order_by(Member.full_name))
-    return [await _view(db, member) for member in members]
+    """All Members in one query (a per-Member lookup is slow against a remote database)."""
+    rows = await db.execute(
+        select(
+            Member,
+            UserAccount.username,
+            MemberTeamPlacement.team_id,
+            RoleAssignment.role_key,
+            RoleAssignment.unit_id,
+        )
+        .join(UserAccount, UserAccount.id == Member.account_id)
+        .outerjoin(
+            MemberTeamPlacement,
+            and_(
+                MemberTeamPlacement.member_id == Member.id, MemberTeamPlacement.valid_to.is_(None)
+            ),
+        )
+        .outerjoin(
+            RoleAssignment,
+            and_(RoleAssignment.member_id == Member.id, RoleAssignment.valid_to.is_(None)),
+        )
+        .order_by(Member.full_name)
+    )
+    return [
+        MemberView(
+            member=member,
+            username=username,
+            team_id=team_id,
+            role_key=role_key,
+            role_unit_id=unit_id,
+        )
+        for member, username, team_id, role_key, unit_id in rows
+    ]
 
 
 async def _view(db: AsyncSession, member: Member) -> MemberView:

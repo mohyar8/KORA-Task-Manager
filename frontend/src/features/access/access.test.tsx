@@ -115,6 +115,6 @@ describe('System Admin: access control', () => {
     renderApp('/admin/access?tab=accounts&account=adm1')
     const matrix = await screen.findByRole('region', { name: 'الصلاحيات الفعلية' })
     expect(within(matrix).getByText('Team A')).toBeInTheDocument()
-    expect(within(matrix).getAllByText('لا وصول').length).toBe(16) // 2 units × 8 permissions, none granted
+    expect(within(matrix).getAllByText('لا وصول').length).toBe(24) // 2 units × 12 permissions, none granted
   })
 })

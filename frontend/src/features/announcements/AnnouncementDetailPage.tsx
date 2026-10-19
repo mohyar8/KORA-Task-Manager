@@ -60,6 +60,8 @@ function AnnouncementView({ a }: { a: Announcement }) {
   const close = () => setDialog(null)
   const toggle = (id: string) => setRecipients((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]))
 
+  const toggleAll = () => setRecipients((cur) => (cur.length === names.members.length ? [] : names.members.map((m) => m.id)))
+
   const saveEdit = () => {
     setSubmitted(true)
     if (!title.trim() || !body.trim()) return
@@ -184,6 +186,11 @@ function AnnouncementView({ a }: { a: Announcement }) {
       >
         <div className={styles.form}>
           <p>{t('ann.publish.body')}</p>
+          {names.members.length > 1 && (
+            <button type="button" className={styles.pickAll} onClick={toggleAll}>
+              {recipients.length === names.members.length ? t('tasks.assignees.clear') : t('tasks.assignees.all')}
+            </button>
+          )}
           <ul className={styles.pickList}>
             {names.members.map((m) => (
               <li key={m.id}>
