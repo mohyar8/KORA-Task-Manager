@@ -103,7 +103,7 @@ Guard order: session (401), then CSRF on unsafe methods (403), then the temporar
 Accounts created by bootstrap or provisioning, or reset by an admin, have a random temporary password that expires after **7 days**. While the password is temporary, only the `AuthenticatedSession` routes work. An expired temporary password cannot sign in (generic 401).
 
 ### 2.5 Sign-in throttle
-5 failures for the same normalized username within 15 minutes lock that username for 15 minutes (`429` + `Retry-After`). This applies to unknown usernames too. Usernames are case-insensitive: they are trimmed and lowercased, and must match `[a-z0-9._-]{3,64}`. An invalid username simply fails sign-in (401).
+5 failures for the same normalized username within 10 minutes lock that username for 5 minutes (`429` + `Retry-After`). This applies to unknown usernames too. Usernames are case-insensitive: they are trimmed and lowercased, and must match `[a-z0-9._-]{3,64}`. An invalid username simply fails sign-in (401).
 
 ---
 

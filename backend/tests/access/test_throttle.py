@@ -4,7 +4,7 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from kora_api.access.policy import LOGIN_LOCKOUT_DURATION
+from kora_api.access.policy import LOGIN_FAILURE_WINDOW, LOGIN_LOCKOUT_DURATION
 from tests.access.helpers import create_account, sign_in
 from tests.conftest import FrozenClock
 
@@ -39,7 +39,7 @@ async def test_failures_outside_the_window_do_not_accumulate(
     await create_account(db_session, "alice")
     await _fail(db_client, "alice", 4)
 
-    frozen_clock.advance(timedelta(minutes=15))
+    frozen_clock.advance(LOGIN_FAILURE_WINDOW)
     await _fail(db_client, "alice", 4)  # a new window starts; still under the limit
 
     assert (await sign_in(db_client, "alice")).status_code == 200

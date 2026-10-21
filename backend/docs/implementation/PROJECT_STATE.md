@@ -91,7 +91,7 @@ Governance foundation. Authentication, the organization structure, Members, role
   - CSRF uses a session-bound, non-secret token in the `kora_csrf` cookie (readable, Secure, SameSite=Strict, Path=/), echoed in the `X-CSRF-Token` header. Every authenticated unsafe request requires it; sign-in does not.
   - 8-hour idle timeout and 7-day absolute lifetime. Password change and sign-out-all revoke all sessions.
 - No secret disclosure: 422 responses never echo submitted values, and the DB engine uses `hide_parameters=True` so SQL logs and errors omit bound values.
-- Sign-in throttle: 5 failures per normalized username within 15 minutes locks it for 15 minutes (429 with `Retry-After`). This also applies to usernames that don't exist. Credential failures return the same generic 401.
+- Sign-in throttle: 5 failures per normalized username within 10 minutes locks it for 5 minutes (429 with `Retry-After`). This also applies to usernames that don't exist. Credential failures return the same generic 401.
 - System Admin:
   - An append-only grant, separate from organizational roles, with no implicit operational-data access.
   - Bootstrap only through the CLI, and only if no grant ever existed.

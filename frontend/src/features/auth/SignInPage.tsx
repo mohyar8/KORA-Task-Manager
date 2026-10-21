@@ -43,7 +43,7 @@ export function SignInPage() {
       navigate(session.account.must_change_password ? '/change-password' : from, { replace: true })
     },
     onError: (e) => {
-      if (e instanceof ApiError && e.status === 429) setRemaining(e.retryAfter ?? 900)
+      if (e instanceof ApiError && e.status === 429) setRemaining(e.retryAfter ?? 300)
     },
   })
 

@@ -15,5 +15,5 @@ SESSION_ABSOLUTE_LIFETIME = timedelta(days=7)
 SESSION_TOUCH_INTERVAL = timedelta(minutes=1)
 
 LOGIN_MAX_FAILURES = 5
-LOGIN_FAILURE_WINDOW = timedelta(minutes=15)
-LOGIN_LOCKOUT_DURATION = timedelta(minutes=15)
+LOGIN_FAILURE_WINDOW = timedelta(minutes=10)
+LOGIN_LOCKOUT_DURATION = timedelta(minutes=5)
