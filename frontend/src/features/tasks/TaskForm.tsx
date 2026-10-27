@@ -6,6 +6,7 @@ import { InlineError } from '@/shared/ui/Feedback'
 import { SelectField, TextAreaField, TextField } from '@/shared/ui/Field'
 import { Modal } from '@/shared/ui/Modal'
 import { AssigneePicker } from './AssigneePicker'
+import { FilePicker } from './FilePicker'
 import { isoToLocalInput } from './rules'
 import { TASK_PRIORITIES, type Task, type TaskFields, type TaskPriority } from './types'
 import styles from './tasks.module.css'
@@ -14,6 +15,8 @@ export interface TaskFormValues extends TaskFields {
   scope_unit_id: string
   assignee_member_ids: string[]
   external_assignee_member_ids: string[]
+  /** Files attached while creating; they are saved once the task exists. */
+  files?: File[]
 }
 
 interface Props {
@@ -44,6 +47,7 @@ export function TaskFormModal(props: Props) {
   const [assignees, setAssignees] = useState<string[]>([])
   const [externals, setExternals] = useState<string[]>([])
   const [submitted, setSubmitted] = useState(false)
+  const [files, setFiles] = useState<File[]>([])
 
   const problems = {
     title: !name.trim() ? t('tasks.titleRequired') : undefined,
@@ -62,6 +66,7 @@ export function TaskFormModal(props: Props) {
       scope_unit_id: scope,
       assignee_member_ids: assignees,
       external_assignee_member_ids: externals,
+      files,
     })
   }
 
@@ -94,6 +99,7 @@ export function TaskFormModal(props: Props) {
           </SelectField>
         )}
         {withAssignees && <AssigneePicker selected={assignees} onChange={setAssignees} external={externals} onExternalChange={setExternals} error={submitted ? problems.assignees : undefined} />}
+        {scopeOptions && <FilePicker files={files} onChange={setFiles} />}
         <InlineError error={error} />
       </div>
     </Modal>

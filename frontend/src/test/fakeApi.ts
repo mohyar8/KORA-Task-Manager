@@ -40,10 +40,12 @@ export function installFakeApi(initial: Record<string, Handler> = {}): FakeApi {
 export const account = { id: 'a1', username: 'sara', must_change_password: false, is_system_admin: false, member_id: null as string | null }
 
 /** An access response where `allowed` lists "permission@unitId" pairs; units are KORA + one Team. */
-export function accessFor(allowed: string[] = []) {
+/** `withAdministration` adds an Administration unit (for rules that tell administrations from teams). */
+export function accessFor(allowed: string[] = [], withAdministration = false) {
   const units = [
     { unit_id: 'u-kora', name: 'KORA', kind: 'organization' },
     { unit_id: 'u-team', name: 'Team A', kind: 'team' },
+    ...(withAdministration ? [{ unit_id: 'u-admin', name: 'Admin B', kind: 'administration' }] : []),
   ]
   const perms = [
     'organization.manage', 'task.view', 'task.create', 'task.manage',

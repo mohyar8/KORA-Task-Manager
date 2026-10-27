@@ -1,0 +1,21 @@
+.title { display: flex; align-items: center; gap: var(--space-2); font-size: var(--text-lg); margin-block-end: var(--space-4); }
+.section + .section { margin-block-start: var(--space-5); padding-block-start: var(--space-4); border-block-start: 1px solid var(--ui-border); }
+.section header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); margin-block-end: var(--space-2); }
+.section h3 { margin: 0; font-size: var(--text-md); }
+.count { color: var(--ui-muted); font-weight: 400; font-size: var(--text-sm); }
+.upload { display: inline-flex; align-items: center; gap: var(--space-2); min-block-size: 40px; padding: 0 var(--space-4); border: 1.5px solid var(--kora-coral); border-radius: 999px; background: transparent; color: var(--kora-coral); font: inherit; font-weight: 700; font-size: var(--text-sm); cursor: pointer; }
+.upload:hover:not(:disabled) { background: color-mix(in srgb, var(--kora-coral) 16%, transparent); }
+.upload:disabled { opacity: 0.5; cursor: default; }
+.empty { margin: 0; color: var(--ui-muted); font-size: var(--text-sm); }
+.problem { margin: 0 0 var(--space-2); color: var(--state-danger); font-size: var(--text-sm); font-weight: 700; }
+.list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2); }
+.list li { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-2) var(--space-3); border: 1px solid var(--ui-border); border-radius: 10px; background: var(--ui-surface-soft); color: var(--ui-muted); }
+.meta { flex: 1; min-inline-size: 0; display: grid; }
+.meta b { color: var(--ui-text); font-weight: 500; overflow-wrap: anywhere; }
+.meta small { color: var(--ui-muted); }
+.icon { flex: none; display: grid; place-items: center; inline-size: 40px; block-size: 40px; border: 0; border-radius: 8px; background: transparent; color: var(--ui-link); cursor: pointer; }
+.icon:hover { background: var(--ui-navy-tint); }
+.dialogTask { font-weight: 800; font-size: var(--text-md); margin: 0 0 var(--space-2); overflow-wrap: anywhere; }
+.dialogLabel { margin: var(--space-4) 0 var(--space-2); font-size: var(--text-sm); color: var(--ui-muted); }
+.pickRow { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+.picked { margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: var(--space-2); font-size: var(--text-sm); color: var(--ui-muted); }

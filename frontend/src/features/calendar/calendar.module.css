@@ -2,7 +2,7 @@
 .twoCol { display: grid; gap: var(--space-4); }
 @media (min-width: 640px) { .twoCol { grid-template-columns: 1fr 1fr; } }
 .monthBar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3); margin-block-end: var(--space-4); }
-.monthName { font-size: var(--text-lg); font-weight: 700; color: var(--kora-navy); min-inline-size: 10ch; text-align: center; }
+.monthName { font-size: var(--text-lg); font-weight: 700; color: var(--ui-link); min-inline-size: 10ch; text-align: center; }
 .nav { display: flex; align-items: center; gap: var(--space-2); }
 .flip { transform: scaleX(1); }
 :global([dir='rtl']) .flip { transform: scaleX(-1); }
@@ -14,14 +14,14 @@
 .grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
 .pad { min-block-size: 56px; }
 .day { position: relative; display: flex; flex-direction: column; align-items: stretch; gap: 4px; min-block-size: 56px; padding: 6px; border: 0; border-radius: 14px; background: var(--ui-surface-soft); color: var(--ui-text); cursor: pointer; text-align: start; font: inherit; overflow: hidden; transition: transform 0.18s var(--ease), box-shadow 0.18s, background 0.18s; }
-.day:hover { transform: translateY(-2px); background: color-mix(in srgb, var(--kora-fuchsia) 8%, white); box-shadow: var(--shadow-card); }
+.day:hover { transform: translateY(-2px); background: color-mix(in srgb, var(--kora-fuchsia) 8%, var(--ui-mix)); box-shadow: var(--shadow-card); }
 .num { font-weight: 800; font-size: var(--text-sm); color: var(--kora-navy-deep); }
 .today .num { display: inline-grid; place-items: center; min-inline-size: 26px; block-size: 26px; border-radius: 50%; background: var(--grad-warm); color: #fff; align-self: flex-start; }
-.selected { background: #fff; box-shadow: inset 0 0 0 2px var(--kora-fuchsia), var(--shadow-card); }
+.selected { background: var(--ui-surface); box-shadow: inset 0 0 0 2px var(--kora-fuchsia), var(--shadow-card); }
 .chips { display: none; flex-direction: column; gap: 3px; min-inline-size: 0; }
 .chip { display: block; padding: 2px 7px; border-radius: 7px; font-size: 11px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.chipEvent { background: color-mix(in srgb, var(--kora-navy) 12%, white); color: var(--kora-navy); border-inline-start: 3px solid var(--kora-navy); }
-.chipTask { background: color-mix(in srgb, var(--kora-coral) 16%, white); color: var(--coral-deep); border-inline-start: 3px solid var(--kora-coral); }
+.chipEvent { background: color-mix(in srgb, var(--kora-navy) 12%, var(--ui-mix)); color: var(--ui-link); border-inline-start: 3px solid var(--kora-navy); }
+.chipTask { background: color-mix(in srgb, var(--kora-coral) 16%, var(--ui-mix)); color: var(--coral-deep); border-inline-start: 3px solid var(--kora-coral); }
 .more { font-size: 11px; color: var(--ui-muted); font-weight: 700; padding-inline: 4px; }
 .dots { display: flex; gap: 4px; }
 .dots i, .legend i { display: inline-block; inline-size: 8px; block-size: 8px; border-radius: 50%; }

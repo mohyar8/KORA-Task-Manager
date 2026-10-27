@@ -24,11 +24,11 @@
 .step:hover { background: rgb(255 255 255 / 0.32); }
 .input { inline-size: 5ch; min-block-size: var(--min-target, 44px); text-align: center; font: inherit; font-weight: 800; font-size: 1.2rem; border-radius: 12px; border: 2px solid rgb(255 255 255 / 0.5); background: rgb(255 255 255 / 0.12); color: #fff; }
 .updated { text-align: center; color: var(--ui-muted); font-size: var(--text-sm); margin: 0; }
-.footer { text-align: center; font-weight: 700; color: var(--kora-navy); margin: 0; }
+.footer { text-align: center; font-weight: 700; color: var(--ui-link); margin: 0; }
 @media (max-width: 520px) { .row { grid-template-columns: 38px 1fr auto; padding: var(--space-3) var(--space-4); gap: var(--space-3); } .ball { inline-size: 110px; } .ribbon { padding-inline: var(--space-5); } }
 @media (prefers-reduced-motion: reduce) { .ball, .row { animation: none; } .bar i { transition: none; } }
 
-.arena { position: relative; overflow: hidden; padding: var(--space-4); border-radius: var(--radius-large); background: linear-gradient(180deg, color-mix(in srgb, var(--kora-fuchsia) 12%, white), color-mix(in srgb, var(--kora-navy) 10%, white)); border: 1px solid color-mix(in srgb, var(--kora-fuchsia) 18%, white); }
+.arena { position: relative; overflow: hidden; padding: var(--space-4); border-radius: var(--radius-large); background: linear-gradient(180deg, color-mix(in srgb, var(--kora-fuchsia) 12%, var(--ui-mix)), color-mix(in srgb, var(--kora-navy) 10%, var(--ui-mix))); border: 1px solid color-mix(in srgb, var(--kora-fuchsia) 18%, var(--ui-mix)); }
 .arena::before { content: ''; position: absolute; inset: 0; background: url('@/shared/brand/pattern-9.svg') center / 320px repeat; opacity: 0.08; pointer-events: none; }
 .arena > * { position: relative; }
 @media (max-width: 520px) { .arena { padding: var(--space-3); } }

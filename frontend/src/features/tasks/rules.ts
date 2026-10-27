@@ -20,6 +20,9 @@ export const isScopedManager = (task: Task, v: Viewer) => canAt(v.access, 'task.
 export const canAdminister = (task: Task, v: Viewer) =>
   (!!v.memberId && task.created_by_member_id === v.memberId) || isScopedManager(task, v)
 
+/** Close (or reopen) a task: the creator or a scoped leader/manager. */
+export const canFinish = (task: Task, v: Viewer) => canAdminister(task, v)
+
 /** Move work forward: an assignee or a scoped manager. */
 export const canWork = (task: Task, v: Viewer) => isAssignee(task, v) || isScopedManager(task, v)
 
@@ -33,10 +36,11 @@ export function allowedTransitions(task: Task, v: Viewer): TaskStatus[] {
   const work = canWork(task, v)
   const admin = canAdminister(task, v)
   switch (task.status) {
+    // A plain assignee can start work but never close it: they flag their part and the leader closes the task.
     case 'new':
-      return [...(work ? (['in_progress', 'completed'] as const) : []), ...(admin ? (['cancelled'] as const) : [])]
+      return [...(work ? (['in_progress'] as const) : []), ...(admin ? (['completed', 'cancelled'] as const) : [])]
     case 'in_progress':
-      return [...(work ? (['completed'] as const) : []), ...(admin ? (['cancelled'] as const) : [])]
+      return admin ? ['completed', 'cancelled'] : []
     case 'completed':
     case 'cancelled':
       return admin ? ['new'] : []

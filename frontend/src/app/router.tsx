@@ -2,7 +2,7 @@ import type { ComponentType, ReactNode } from 'react'
 import { createBrowserRouter, type RouteObject } from 'react-router'
 import { AccountPage } from '@/features/auth/AccountPage'
 import { ForcedPasswordPage } from '@/features/auth/ForcedPasswordPage'
-import { RequireAdmin, RequireAuth, RequirePermission } from '@/features/auth/guards'
+import { RequireAdmin, RequireAdministrationManager, RequireAuth, RequirePermission } from '@/features/auth/guards'
 import { SignInPage } from '@/features/auth/SignInPage'
 import { AppShell } from './AppShell'
 import { GapsPage } from './GapsPage'
@@ -24,6 +24,7 @@ function page(path: string, load: Loader, name: string, guard?: (page: ReactNode
 }
 
 const admin = (node: ReactNode) => <RequireAdmin>{node}</RequireAdmin>
+const administrationManager = (node: ReactNode) => <RequireAdministrationManager>{node}</RequireAdministrationManager>
 const manageOrg = (node: ReactNode) => <RequirePermission permission="organization.manage">{node}</RequirePermission>
 
 /** The shell wraps every signed-in route. Pages are guarded here as well as by the API (the API is the authority). */
@@ -40,7 +41,13 @@ export const routes: RouteObject[] = [
           { index: true, element: <HomePage /> },
           { path: 'account', element: <AccountPage /> },
           { path: 'not-available', element: <GapsPage /> },
-          page('tasks', () => import('@/features/tasks/TasksPage'), 'TasksPage'),
+          page('teams', () => import('@/features/teams/TeamsPage'), 'TeamsPage'),
+          page('teams/:unitId', () => import('@/features/teams/TeamPage'), 'TeamPage'),
+          page('chat', () => import('@/features/chat/ChatPage'), 'ChatPage'),
+          page('chat/:channelId', () => import('@/features/chat/ChatPage'), 'ChatPage'),
+          page('structure', () => import('@/features/structure/StructurePage'), 'StructurePage'),
+          page('requests', () => import('@/features/requests/RequestsPage'), 'RequestsPage'),
+          page('tasks', () => import('@/features/tasks/TasksPage'), 'TasksPage', administrationManager),
           page('follow', () => import('@/features/tasks/FollowPage'), 'FollowPage'),
           page('tasks/:taskId', () => import('@/features/tasks/TaskDetailPage'), 'TaskDetailPage'),
           page('task-series/:seriesId', () => import('@/features/tasks/SeriesPage'), 'SeriesPage'),

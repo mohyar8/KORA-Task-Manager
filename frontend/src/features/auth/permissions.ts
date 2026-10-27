@@ -24,3 +24,9 @@ export function allUnits(access: EffectiveAccess | null): UnitDecision[] {
   for (const p of access?.permissions ?? []) for (const u of p.units) if (!seen.has(u.unit_id)) seen.set(u.unit_id, u)
   return [...seen.values()]
 }
+
+/** Manages at least one Administration (not just a team): the people who see the organisation-wide task list. */
+export function isAdministrationManager(access: EffectiveAccess | null): boolean {
+  return allowedUnits(access, 'task.manage').some((u) => u.kind === 'administration')
+}
+

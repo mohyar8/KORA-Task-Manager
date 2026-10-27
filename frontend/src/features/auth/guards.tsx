@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { Navigate, Outlet, useLocation } from 'react-router'
 import { AccessDenied, ErrorState, Skeleton } from '@/shared/ui/Feedback'
-import { canAnywhere } from './permissions'
+import { canAnywhere, isAdministrationManager } from './permissions'
 import { useSession } from './session'
 import type { Permission } from './types'
 
@@ -28,6 +28,12 @@ export function RequireAuth() {
 export function RequirePermission({ permission, children }: { permission: Permission; children: ReactNode }) {
   const { access } = useSession()
   return canAnywhere(access, permission) ? children : <AccessDenied />
+}
+
+/** Administration managers only (the all-tasks list). */
+export function RequireAdministrationManager({ children }: { children: ReactNode }) {
+  const { access } = useSession()
+  return isAdministrationManager(access) ? children : <AccessDenied />
 }
 
 /** Guards `/admin/*` UI. System Admin is separate from operational permissions (contract §3.4). */

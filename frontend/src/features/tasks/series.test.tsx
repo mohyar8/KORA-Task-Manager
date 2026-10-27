@@ -13,7 +13,7 @@ const directory = [
   { id: 'm-sara', full_name: 'Sara Khalid', team_id: 'u-team', role_key: 'team_leader' },
   { id: 'm-omar', full_name: 'Omar Ali', team_id: 'u-team', role_key: 'member' },
 ]
-const access = accessFor(['task.view@u-team', 'task.create@u-team', 'task.manage@u-team'])
+const access = accessFor(['task.view@u-team', 'task.create@u-team', 'task.manage@u-team', 'task.manage@u-admin'], true)
 
 const series = (over: Partial<Series> = {}): Series => ({
   id: 's1', scope_unit_id: 'u-team', title: 'Weekly report', description: null, priority: null, assignee_member_ids: ['m-omar'],

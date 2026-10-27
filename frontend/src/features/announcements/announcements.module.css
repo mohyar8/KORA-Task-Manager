@@ -1,5 +1,5 @@
 .filter { max-inline-size: 280px; margin-block-end: var(--space-4); }
-.link { font-weight: 700; color: var(--kora-navy); overflow-wrap: anywhere; }
+.link { font-weight: 700; color: var(--ui-link); overflow-wrap: anywhere; }
 .form { display: grid; gap: var(--space-4); }
 .back { display: inline-flex; align-items: center; gap: var(--space-1); margin-block-end: var(--space-4); font-size: var(--text-sm); }
 :global([dir='ltr']) .backIcon { transform: scaleX(-1); }

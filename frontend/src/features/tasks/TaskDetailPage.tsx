@@ -19,7 +19,10 @@ import { SubtasksCard } from './SubtasksCard'
 import { DueText, PriorityText, StatusChip } from './TaskBits'
 import { useViewer } from './useViewer'
 import { TaskFormModal } from './TaskForm'
-import { allowedTransitions, canAdminister, changedFields } from './rules'
+import { partKey, taskParts, useTaskParts } from '@/mock/taskParts'
+import { AttachmentsCard } from './AttachmentsCard'
+import { CompleteDialog } from './CompleteDialog'
+import { allowedTransitions, canAdminister, canFinish, changedFields, isAssignee, isOpen } from './rules'
 import type { Task, TaskStatus } from './types'
 import styles from './tasks.module.css'
 
@@ -45,9 +48,13 @@ function TaskView({ task }: { task: Task }) {
   const [moving, setMoving] = useState(false)
   const [destination, setDestination] = useState('')
   const [confirm, setConfirm] = useState<TaskStatus | null>(null)
+  const [finishing, setFinishing] = useState<'flag' | 'close' | null>(null)
 
   const unitName = (id: string) => allUnits(access).find((u) => u.unit_id === id)?.name ?? id
   const admin = canAdminister(task, viewer)
+  const parts = useTaskParts()
+  const flagging = isOpen(task) && isAssignee(task, viewer) && !canFinish(task, viewer)
+  const myPart = !!viewer.memberId && !!parts[partKey(task.id, viewer.memberId)]
   const transitions = allowedTransitions(task, viewer)
   const moveOptions = allowedUnits(access, 'task.create').filter((u) => u.unit_id !== task.scope_unit_id)
 
@@ -70,12 +77,15 @@ function TaskView({ task }: { task: Task }) {
               <Button
                 key={s}
                 variant={s === 'cancelled' ? 'danger' : s === 'new' ? 'secondary' : 'primary'}
-                onClick={() => (s === 'cancelled' || s === 'new' ? (setStatus.reset(), setConfirm(s)) : run(s))}
+                onClick={() => (s === 'cancelled' || s === 'new' ? (setStatus.reset(), setConfirm(s)) : s === 'completed' ? setFinishing('close') : run(s))}
                 loading={setStatus.isPending && setStatus.variables === s && confirm === null}
               >
                 {t(`tasks.action.${s}`)}
               </Button>
             ))}
+            {flagging && viewer.memberId && (
+              <Button variant={myPart ? 'secondary' : 'primary'} onClick={() => (myPart ? taskParts.toggle(task.id, viewer.memberId!) : setFinishing('flag'))}>{t(myPart ? 'taskPart.undo' : 'taskPart.done')}</Button>
+            )}
             {admin && <Button variant="secondary" onClick={() => { update.reset(); setEditing(true) }}>{t('tasks.edit')}</Button>}
             {admin && !task.parent_id && moveOptions.length > 0 && (
               <Button variant="secondary" onClick={() => { move.reset(); setDestination(''); setMoving(true) }}>{t('tasks.move')}</Button>
@@ -113,10 +123,26 @@ function TaskView({ task }: { task: Task }) {
         </Card>
 
         <AssigneesCard task={task} viewer={viewer} />
+        <AttachmentsCard task={task} viewer={viewer} />
         {!task.parent_id && <SubtasksCard task={task} viewer={viewer} />}
         <CommentsCard task={task} viewer={viewer} />
         <HistoryCard task={task} />
       </div>
+
+      {finishing && (
+        <CompleteDialog
+          taskId={task.id}
+          title={task.title}
+          mode={finishing}
+          loading={setStatus.isPending}
+          onClose={() => setFinishing(null)}
+          onConfirm={() => {
+            if (finishing === 'flag' && viewer.memberId) taskParts.toggle(task.id, viewer.memberId)
+            else run('completed')
+            setFinishing(null)
+          }}
+        />
+      )}
 
       {editing && (
         <TaskFormModal

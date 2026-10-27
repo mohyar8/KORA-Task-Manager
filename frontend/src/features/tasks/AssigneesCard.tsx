@@ -13,6 +13,8 @@ import { canAdminister, isOpen, type Viewer } from './rules'
 import type { Task } from './types'
 import styles from './tasks.module.css'
 
+import { partKey, useTaskParts } from '@/mock/taskParts'
+
 export function AssigneesCard({ task, viewer }: { task: Task; viewer: Viewer }) {
   const { t } = useI18n()
   const toast = useToast()
@@ -26,6 +28,11 @@ export function AssigneesCard({ task, viewer }: { task: Task; viewer: Viewer }) 
   const [removing, setRemoving] = useState<string | null>(null)
 
   const admin = canAdminister(task, viewer) && isOpen(task)
+  // Each assignee works on their own copy: the leader sees who has finished their part.
+  const parts = useTaskParts()
+  const tracking = canAdminister(task, viewer) && isOpen(task)
+  const finished = task.assignee_member_ids.filter((id) => parts[partKey(task.id, id)]).length
+  const total = task.assignee_member_ids.length
   const pool = other ? (all.data ?? []) : names.members.filter((m) => !isTopRole(m.role_key))
   const candidates = pool.filter((m) => !task.assignee_member_ids.includes(m.id))
   const externalIds = new Set(task.external_assignees.map((e) => e.id))
@@ -39,6 +46,12 @@ export function AssigneesCard({ task, viewer }: { task: Task; viewer: Viewer }) 
           <Button variant="secondary" onClick={() => { add.reset(); setPick(''); setOther(false); setAdding(true) }}>{t('tasks.assignees.add')}</Button>
         )}
       </div>
+      {tracking && total > 0 && (
+        <p className={styles.hint}>
+          {t('taskPart.progress', { done: finished, total })}
+          {finished === total && <> — <b>{t('taskPart.allDone')}</b></>}
+        </p>
+      )}
       {task.assignee_member_ids.length === 0 ? (
         <p className={styles.hint}>{t('tasks.assignees.none')}</p>
       ) : (
@@ -49,7 +62,7 @@ export function AssigneesCard({ task, viewer }: { task: Task; viewer: Viewer }) 
               index={i}
               title={<>{nameOf(id)}{externalIds.has(id) && <> <Chip tone="info">{t('tasks.assignees.externalChip')}</Chip></>}</>}
               leading={<Avatar tone="fuchsia" size={40}>{initialOf(nameOf(id))}</Avatar>}
-              trailing={admin && <Button variant="ghost" onClick={() => { remove.reset(); setRemoving(id) }}>{t('tasks.assignees.remove')}</Button>}
+              trailing={<>{tracking && (parts[partKey(task.id, id)] ? <Chip tone="success">{t('taskPart.finished')}</Chip> : <Chip>{t('taskPart.working')}</Chip>)}{admin && <Button variant="ghost" onClick={() => { remove.reset(); setRemoving(id) }}>{t('tasks.assignees.remove')}</Button>}</>}
             />
           ))}
         </RowList>

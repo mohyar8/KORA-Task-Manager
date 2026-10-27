@@ -17,7 +17,7 @@ const directory = [
   { id: ME, full_name: 'Sara Khalid', team_id: 'u-team', role_key: 'team_leader' },
   { id: 'm-omar', full_name: 'Omar Ali', team_id: 'u-team', role_key: 'member' },
 ]
-const access = accessFor(['task.view@u-team', 'task.create@u-team', 'task.manage@u-team'])
+const access = accessFor(['task.view@u-team', 'task.create@u-team', 'task.manage@u-team', 'task.manage@u-admin'], true)
 
 const task = (over: Partial<Task> = {}): Task => ({
   id: 't1', title: 'Prepare match report', description: 'Details here', priority: 'high', due_at: '2099-01-01T10:00:00Z',
@@ -30,15 +30,15 @@ const viewer = (over: Partial<Viewer> = {}): Viewer => ({ memberId: ME, accountI
 const noAccess = accessFor() as unknown as EffectiveAccess
 
 describe('task rules', () => {
-  it('lets an assignee start/complete but not cancel', () => {
+  it('lets an assignee only start work (the leader closes it)', () => {
     const omar = viewer({ memberId: 'm-omar', accountId: 'a-omar', access: noAccess })
-    expect(allowedTransitions(task(), omar)).toEqual(['in_progress', 'completed'])
-    expect(allowedTransitions(task({ status: 'in_progress' }), omar)).toEqual(['completed'])
+    expect(allowedTransitions(task(), omar)).toEqual(['in_progress'])
+    expect(allowedTransitions(task({ status: 'in_progress' }), omar)).toEqual([])
     expect(allowedTransitions(task({ status: 'completed' }), omar)).toEqual([])
   })
-  it('lets the creator or a scoped manager cancel and reopen', () => {
+  it('lets the creator or a scoped manager close, cancel and reopen', () => {
     const creatorOnly = viewer({ access: noAccess }) // creator, no manage
-    expect(allowedTransitions(task(), creatorOnly)).toEqual(['cancelled'])
+    expect(allowedTransitions(task(), creatorOnly)).toEqual(['completed', 'cancelled'])
     expect(allowedTransitions(task({ status: 'cancelled' }), creatorOnly)).toEqual(['new'])
     expect(allowedTransitions(task(), viewer())).toEqual(['in_progress', 'completed', 'cancelled'])
   })
@@ -175,9 +175,32 @@ describe('Tasks UI', () => {
     await waitFor(() => expect(api.calls.find((c) => c.key === 'POST /tasks/t1/status')?.body).toEqual({ status: 'in_progress' }))
   })
 
-  it('shows Home counts labelled as derived from visible tasks', async () => {
+  it('Home lists my open tasks and completes one after confirming', async () => {
+    api.on('GET /tasks', { body: [task({ id: 't5', title: 'Send the lineup', assignee_member_ids: [ME], due_at: '2000-01-01T10:00:00Z' })] })
+    api.on('GET /announcements', { body: [] })
+    api.on('GET /calendar/events', { body: [] })
+    api.on('POST /tasks/t5/status', { body: task({ id: 't5', status: 'completed' }) })
     renderApp('/')
-    expect(await screen.findByText('تُحسب من المهام التي يمكنك رؤيتها، وليست رقمًا على مستوى المنظمة.')).toBeInTheDocument()
-    expect(screen.getByText('المهام المفتوحة')).toBeInTheDocument()
+    await userEvent.click(await screen.findByRole('tab', { name: /المتأخرة/ }))
+    expect(await screen.findByRole('link', { name: 'Send the lineup' })).toHaveAttribute('href', '/tasks/t5')
+    await userEvent.click(screen.getByRole('button', { name: 'إنجاز المهمة: Send the lineup' }))
+    expect(api.calls.some((c) => c.key === 'POST /tasks/t5/status')).toBe(false)
+    await userEvent.click(await screen.findByRole('button', { name: 'نعم، أغلقها' }))
+    await waitFor(() => expect(api.calls.find((c) => c.key === 'POST /tasks/t5/status')?.body).toEqual({ status: 'completed' }))
+  })
+
+  it('the sidebar lists my team and the team page adds a task from one line', async () => {
+    api.on('GET /announcements', { body: [] })
+    api.on('GET /calendar/events', { body: [] })
+    api.on('POST /tasks', (b) => ({ status: 201, body: task({ id: 't9', ...(b as object) }) }))
+    renderApp('/teams/u-team')
+    expect(await screen.findByRole('heading', { level: 1, name: 'Team A' })).toBeInTheDocument()
+    expect(screen.getAllByRole('link', { name: 'Team A' }).some((l) => l.getAttribute('href') === '/teams/u-team')).toBe(true)
+    await userEvent.type(await screen.findByLabelText('العنوان'), 'Print the banners')
+    await userEvent.click(screen.getByRole('button', { name: /إضافة/ }))
+    await waitFor(() => {
+      const body = api.calls.find((c) => c.key === 'POST /tasks')?.body as Record<string, unknown>
+      expect(body).toMatchObject({ title: 'Print the banners', scope_unit_id: 'u-team', assignee_member_ids: [ME] })
+    })
   })
 })

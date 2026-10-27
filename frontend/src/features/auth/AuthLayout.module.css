@@ -2,7 +2,7 @@
 .art { display: none; }
 .main { flex: 1; display: flex; flex-direction: column; padding: var(--space-4) var(--page-pad) var(--space-7); }
 .tools { display: flex; justify-content: flex-end; }
-.lang { display: inline-flex; align-items: center; gap: var(--space-2); min-block-size: var(--min-target); padding: 0 var(--space-4); border: 0; background: var(--ui-surface); color: var(--kora-navy); font-weight: 700; cursor: pointer; border-radius: 999px; box-shadow: var(--shadow-card); transition: transform 0.18s var(--ease); }
+.lang { display: inline-flex; align-items: center; gap: var(--space-2); min-block-size: var(--min-target); padding: 0 var(--space-4); border: 0; background: var(--ui-surface); color: var(--ui-link); font-weight: 700; cursor: pointer; border-radius: 999px; box-shadow: var(--shadow-card); transition: transform 0.18s var(--ease); }
 .lang:hover { transform: translateY(-1px); }
 .formColumn { inline-size: min(100%, 460px); margin: auto; display: flex; flex-direction: column; gap: var(--space-5); }
 .mobileBrand { align-self: center; padding: var(--space-3) var(--space-5); border-radius: 999px; background: var(--grad-brand); box-shadow: 0 14px 28px -12px rgb(45 59 112 / 0.7); }

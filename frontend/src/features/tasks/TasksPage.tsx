@@ -18,6 +18,7 @@ import { useViewer } from './useViewer'
 import { useMediaQuery } from '@/shared/lib/useMediaQuery'
 import { TaskBoard } from './TaskBoard'
 import { TaskFormModal } from './TaskForm'
+import { useAttachAfterCreate } from './FilePicker'
 import { isAssignee, isCreator, statusAccent } from './rules'
 import { TASK_STATUSES } from './types'
 import { matchesSearch } from '@/shared/lib/search'
@@ -29,6 +30,7 @@ export function TasksPage() {
   const toast = useToast()
   const { access } = useSession()
   const viewer = useViewer()
+  const attach = useAttachAfterCreate()
   const names = useMemberNames()
   const [params, setParams] = useSearchParams()
   const status = params.get('status') ?? ''
@@ -162,7 +164,7 @@ export function TasksPage() {
           onSubmit={(v) =>
             create.mutate(
               { title: v.title, description: v.description, priority: v.priority, due_at: v.due_at, scope_unit_id: v.scope_unit_id, assignee_member_ids: v.assignee_member_ids, external_assignee_member_ids: v.external_assignee_member_ids },
-              { onSuccess: () => { setCreating(false); toast(t('tasks.created')) } },
+              { onSuccess: (task) => { attach(task.id, v.files ?? []); setCreating(false); toast(t('tasks.created')) } },
             )
           }
         />
