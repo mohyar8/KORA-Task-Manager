@@ -1,6 +1,6 @@
 # KORA Internal Operations Platform — Backend Project State
 
-_Last updated: 2026-10-12 (Milestone 8B)_
+_Last updated: 2026-10-28 (V2 backend B1-B7 implemented; B8 cut-over is frontend work)_
 
 ## Current phase
 
@@ -8,7 +8,7 @@ Governance foundation. Authentication, the organization structure, Members, role
 
 ## API contract
 
-`docs/api/API_CONTRACT.md` is the authoritative contract for all 80 mounted `/api/v1` operations: conventions, session/CSRF rules, permissions, schemas, status codes and cross-module rules. §15 lists the discrepancies resolved in M8B and those still open. OpenAPI documents every error status and the actual 422 format, and the test suite fails if any response it observes is undocumented (`tests/response_contract.py`). Update both whenever a route or its behavior changes.
+`docs/api/API_CONTRACT.md` is the authoritative contract for all 110 mounted `/api/v1` operations: conventions, session/CSRF rules, permissions, schemas, status codes and cross-module rules. §15 lists the discrepancies resolved in M8B and those still open. OpenAPI documents every error status and the actual 422 format, and the test suite fails if any response it observes is undocumented (`tests/response_contract.py`). Update both whenever a route or its behavior changes.
 
 ## Repository baseline
 
@@ -222,6 +222,21 @@ Governance foundation. Authentication, the organization structure, Members, role
   - History boundary: the log starts when migration `6b1e9c4d2a7f` is applied. Earlier changes are not backfilled; domain history tables (`task_events`, placements, etc.) remain the record for that period.
 - Dependency direction: `access` ← `organization` ← `tasks` / `announcements` / `calendar` → `notifications` → `access`. `calendar` reads `tasks` (due dates) only. `notifications` imports no source module. Every domain may import `audit`; `audit` imports no domain.
 
+## 2026-10-28 — V2 B1: finished parts and review tasks
+- Migration `c9e1a3b5d7f8`: `task_part_progress`, `tasks.kind` (`regular`/`review`) + `review_of_task_id` + `review_member_id` (unique per pair, check constraint), notification category `task_review`. `migrations/env.py` now runs one transaction per migration (a fresh database failed at `b2d4f6a8c0e1` because `now()` was identical across migrations).
+- **Rule change:** an assignee can only move a task to `in_progress`; `completed` needs the creator or a scoped manager. Assignees flag their part with `PUT /tasks/{id}/progress`; that creates/reopens a review task for the creator and the Team Leader/Administration Manager over the scope. Leaders can send work back (`POST …/progress/{member_id}/return`). Details and edge rules: contract §9 + addendum 2026-10-28; tests `tests/tasks/test_progress.py`.
+- `organization.queries.active_positions` added (to find a scope's leaders).
+
+## 2026-10-28 — V2 B2–B7 (each tested on its own; details in `BACKEND_V2_PLAN.md` and contract §8.1b, §9b–§9f)
+- **B2** `GET /organization/structure`: whole active tree, names and roles only, any active Member.
+- **B4** `notes` package, migration `d0f2b4c6e8a9`: `GET/PUT /me/note`, per-account, versioned (409 on stale), never audited.
+- **B5** `task_requests` package, migration `e1a3c5d7f9b0`: permissions `task_request.create|respond` (Administration Manager, Event Leader, Deputy), accept creates the real task in the target Administration (`from_outside=true`, sender gets read+comment via `tasks.requested_by_member_id`), notification category `task_request`.
+- **B6** `messaging` package, migration `f2b4d6e8a0c1`: direct chats (private, 404 to others), derived unit/organization channels, cursor polling (`after`/`before`), unread counts, 30 msg/min limit, permission `chat.moderate`, category `chat_message`; text never audited/logged/notified.
+- **B7** `summary` package: `GET /me/summary` badge counts.
+- **B3** `task_files` package + `core/storage.py`, migration `a3c5e7f9b1d2`: presigned S3-compatible upload/download (stdlib SigV4, no SDK), settings `KORA_STORAGE_*` (unset = 503). **Not exercised against a real bucket.**
+- **2026-10-29 B8 wiring (frontend) done; `src/mock/*` deliberately kept.** Demo environment: `DEMO_ENVIRONMENT.md` + `scripts/seed_demo.py` (local database `kora_demo`, 33 members, ~53 tasks, requests, chat, announcements, events). Tests no longer read a developer `.env` (`tests/conftest.py`), and the lockout test tolerates a one-second tick. **Never start the API without `KORA_DATABASE_URL` set: `backend/.env` points at a cloud database.**
+- Not done on purpose: ETag/304, upload rate limit, pending-upload cleanup, malware scan, SSE. B8 (frontend cut-over, removing `src/mock/*`) remains.
+
 ## Functional scope
 
 Five internal domains:
@@ -284,7 +299,9 @@ Deferred scope (not implemented): files, chat and direct messages, email/push no
 
 ## Next intended work
 
-To be scoped. Candidates include reminders, task workspaces and analytics, and the member directory. Each needs approved business rules first.
+**V2 backend: B1-B7 are implemented (see the 2026-10-28 sections above and [`BACKEND_V2_PLAN.md`](./BACKEND_V2_PLAN.md)).** Remaining: B8 (frontend cut-over from `src/mock/*`, localStorage note migration, frontend tests), configuring a real bucket and trying uploads, and deciding malware scanning before production. Deployment target is Vercel serverless + Neon (no WebSocket; about 4.5 MB request body limit).
+
+Known issue to fix with a **new** corrective migration (never an edit): `b2d4f6a8c0e1` fails with a CheckViolation on a fresh database.
 
 ## 2026-10-15 — frontend-driven addition: `member_id` and Member lookup
 - `AccountResponse.member_id` (via `OrganizationFacts.member_id_for`, so `access` still does not import `organization`) on `/auth/me`, sign-in and change-password responses; null for non-Member accounts.

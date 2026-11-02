@@ -6,8 +6,8 @@
 
 .tableWrap { position: relative; overflow-x: auto; border-radius: var(--radius-card); background: var(--ui-surface); box-shadow: var(--shadow-card); animation: rise 0.5s var(--ease) both; }
 .tableWrap table { inline-size: 100%; border-collapse: separate; border-spacing: 0; font-size: var(--text-sm); }
-.tableWrap th { text-align: start; background: var(--ui-surface-soft); color: var(--kora-navy); font-weight: 700; padding: var(--space-3) var(--space-4); white-space: nowrap; font-size: var(--text-xs); letter-spacing: 0.02em; }
+.tableWrap th { text-align: start; background: var(--ui-surface-soft); color: var(--ui-link); font-weight: 700; padding: var(--space-3) var(--space-4); white-space: nowrap; font-size: var(--text-xs); letter-spacing: 0.02em; }
 .tableWrap td { padding: var(--space-4); border-block-start: 1px solid var(--ui-border); vertical-align: middle; transition: background 0.15s; }
-.tableWrap tbody tr:hover td { background: color-mix(in srgb, var(--kora-fuchsia) 5%, white); }
+.tableWrap tbody tr:hover td { background: color-mix(in srgb, var(--kora-fuchsia) 5%, var(--ui-mix)); }
 
 .card { background: var(--ui-surface); border-radius: var(--radius-card); padding: var(--space-5); box-shadow: var(--shadow-card); animation: rise 0.5s var(--ease) both; }

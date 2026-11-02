@@ -89,6 +89,9 @@ class Api:
     async def put(self, path: str, body: Any) -> Response:
         return await self.client.put(path, json=body, headers=csrf_headers(self.csrf))
 
+    async def delete(self, path: str) -> Response:
+        return await self.client.delete(path, headers=csrf_headers(self.csrf))
+
     async def patch(self, path: str, body: Any) -> Response:
         return await self.client.patch(path, json=body, headers=csrf_headers(self.csrf))
 

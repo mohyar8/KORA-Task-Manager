@@ -13,6 +13,9 @@ export type Permission =
   | 'calendar.view_administration'
   | 'calendar.view_all'
   | 'league.manage'
+  | 'task_request.create'
+  | 'task_request.respond'
+  | 'chat.moderate'
 
 export type UnitKind = 'organization' | 'pmo' | 'administration' | 'team'
 export type DecisionSource = 'override_deny' | 'override_grant' | 'role_default' | 'none'

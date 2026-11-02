@@ -167,8 +167,8 @@ describe('Notifications UI', () => {
   })
 
   it('saves a single preference as a partial map', async () => {
-    api.on('GET /notifications/preferences', { body: { task_assignment: true, task_update: true, task_comment: true, announcement_new: true, announcement_change: true, calendar_event: true } })
-    api.on('PUT /notifications/preferences', (b) => ({ body: { task_assignment: true, task_update: true, task_comment: true, announcement_new: true, announcement_change: true, calendar_event: true, ...(b as object) } }))
+    api.on('GET /notifications/preferences', { body: { task_assignment: true, task_update: true, task_comment: true, announcement_new: true, announcement_change: true, calendar_event: true, task_review: true } })
+    api.on('PUT /notifications/preferences', (b) => ({ body: { task_assignment: true, task_update: true, task_comment: true, announcement_new: true, announcement_change: true, calendar_event: true, task_review: true, ...(b as object) } }))
     renderApp('/notifications?tab=preferences')
     await userEvent.click(await screen.findByLabelText('تعليقات المهام'))
     await waitFor(() => expect(api.calls.find((c) => c.key === 'PUT /notifications/preferences')?.body).toEqual({ task_comment: false }))

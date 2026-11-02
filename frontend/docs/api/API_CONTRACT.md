@@ -153,7 +153,7 @@ A Member is within a unit's scope if their current Team placement **or** their r
 | `SeriesStatus` | `active`, `stopped` |
 | Assignment end reason (history data) | `removed`, `member_inactive`, `out_of_scope`, `series_update` |
 | `AnnouncementState` | `draft`, `published`, `withdrawn` |
-| `NotificationCategory` | `task_assignment`, `task_update`, `task_comment`, `announcement_new`, `announcement_change`, `calendar_event` |
+| `NotificationCategory` | `task_assignment`, `task_update`, `task_comment`, `announcement_new`, `announcement_change`, `calendar_event`, `task_review` |
 | `CalendarEventType` | `event`, `meeting` |
 | `CalendarEventState` | `scheduled`, `cancelled` |
 
@@ -271,6 +271,9 @@ The lookup for pickers and names (assignees, recipients, invitees, task creators
 - **Not listed:** deactivated Members and Members outside the caller's scope. A Member id seen elsewhere (e.g. a former assignee in task history) may therefore be missing from the lookup; clients must show a neutral placeholder rather than fail.
 - The list is unpaginated. It is not the System Admin list (`/admin/members`), which keeps all profile data.
 
+### 8.1b Structure (`GET /api/v1/organization/structure`) — CurrentAccess, active Member
+The whole active organization as a tree. **200** `StructureNodeResponse`: `unit_id`, `name`, `kind`, `leader_ids[]` (Members of that unit holding Event/Project Leader, PMO Leader, Administration Manager or Team Leader; a Team may have several), `members[]` (`member_id`, `full_name`, `role_key`), `children[]` (sorted by name). Root = KORA (children: the PMO and Administrations; Administrations' children: Teams). A Member appears in their **role's unit** (Team roles at the Team, the Administration Manager at the Administration, PMO roles at the PMO, Event Leader/Deputy at KORA). **Names and roles only, no contact or academic data.** Deactivated Members and archived units are omitted. Same tree for every caller; no new permission (showing who is who is intentional). **403** for an account that is not an active Member. No ETag (the tree is small; deferred).
+
 ### 8.2 Members (`/api/v1/admin/members`) — SystemAdmin only
 - `MemberResponse`: `id`, `account_id`, `username`, `full_name`, `university_id|null`, `phone|null`, `email|null`, `major|null`, `academic_year|null`, `status` MemberStatus, `team_id|null`, `role_key` RoleKey|null, `role_unit_id|null`. The last three are null when deactivated.
 - `MemberProfileFields`: `full_name` (trimmed, 1–200); the optional fields `university_id` (≤64), `phone` (≤32), `email` (≤254, must be an email address: a single `@`, no whitespace, and a dot in the domain; otherwise 422), `major` (≤200) and `academic_year` (≤32), all trimmed. Blank, null and omitted values are all stored as null.
@@ -307,10 +310,10 @@ Behavior:
 - **Assignees:** one or more distinct active Members within the scope (§3.5).
 
 ### 9.2 Schemas
-- `TaskResponse`: `id`, `title`, `description|null`, `priority|null`, `due_at|null`, `status`, `scope_unit_id`, `parent_id|null`, `series_id|null`, `created_by_account_id`, `created_by_member_id`, `created_at`, `updated_at`, `started_at|null` (set at the first move to `in_progress` or `completed`), `assignee_member_ids` (sorted).
+- `TaskResponse`: `id`, `title`, `description|null`, `priority|null`, `due_at|null`, `status`, `scope_unit_id`, `parent_id|null`, `series_id|null`, `created_by_account_id`, `created_by_member_id`, `created_at`, `updated_at`, `started_at|null` (set at the first move to `in_progress` or `completed`), `assignee_member_ids` (sorted), `from_outside`, `kind` (`regular`|`review`), `review_of_task_id|null`, `review_member_id|null`, `finished_member_ids` (assignees who finished their part: all of them for the creator and scoped managers, otherwise only the caller's own), `external_assignees`.
 - Task fields: `title` (trimmed, 1–300), `description` (≤10000, not trimmed), `priority` TaskPriority|null, `due_at` (with an offset)|null.
 - `CommentResponse`: `id`, `task_id`, `author_account_id`, `body|null` (null once deleted), `created_at`, `edited_at|null`, `deleted_at|null`. A comment `body` is trimmed, 1–5000.
-- `TaskEventResponse` (history): `kind` (`created`, `updated`, `status_changed`, `assignee_added`, `assignee_removed`, `assignee_not_added`, `scope_changed`, `subtask_created`, `comment_added`, `comment_edited`, `comment_deleted`), `actor_account_id|null`, `data` object, `created_at`.
+- `TaskEventResponse` (history): `kind` (`created`, `updated`, `status_changed`, `assignee_added`, `assignee_removed`, `assignee_not_added`, `scope_changed`, `subtask_created`, `comment_added`, `comment_edited`, `comment_deleted`, `part_finished`, `part_reopened`, `part_returned`, `review_created`, `review_closed`), `actor_account_id|null`, `data` object, `created_at`.
 
 ### 9.3 Endpoints (`/api/v1/tasks`) — CurrentAccess
 | Method & path | Body | Rule | Success | Errors |
@@ -320,6 +323,8 @@ Behavior:
 | `GET /tasks/{task_id}` | — | view | 200 | 404; 403 |
 | `PATCH /tasks/{task_id}` | `UpdateTaskRequest` (partial; `title` cannot be null) | administer | 200 (no change means no write) | 404; 403; 422 |
 | `POST /tasks/{task_id}/status` | `{status: TaskStatus}` | see transitions below | 200 | 404; 403; 409 invalid transition |
+| `PUT /tasks/{task_id}/progress` | `{finished: bool}` | an **assignee** only, task open, not a review task | 200 `TaskResponse` (idempotent) | 404; 403 not an assignee; 409 not open / review task |
+| `POST /tasks/{task_id}/progress/{member_id}/return` | `{note?: string(1–5000)}` | administer | 200 | 404 (task, or that Member has not finished); 403; 409 review task |
 | `POST /tasks/{task_id}/assignees` | `{member_id}` | administer | 200 | 404; 403; 409 `"Already an assignee."`; 422 ineligible |
 | `POST /tasks/{task_id}/assignees/{member_id}/remove` | — | administer | 200 | 404 (task, or not an assignee); 403; 422 last assignee |
 | `POST /tasks/{task_id}/move` | `{scope_unit_id}` | creator with `task.create` at the destination, or `task.manage` at source **and** destination | 200 | 404; 403; 422 subtask, same scope or inactive destination |
@@ -335,13 +340,14 @@ Behavior:
 
 | From | Allowed targets | Who |
 |---|---|---|
-| `new` | `in_progress`, `completed` | an assignee or a scoped manager |
-| `new` | `cancelled` | administer (creator or manager) |
-| `in_progress` | `completed` | an assignee or a scoped manager |
+| `new` | `in_progress` | an assignee or a scoped manager |
+| `new` | `completed`, `cancelled` | administer (creator or manager) — **an assignee cannot complete** (V2: they flag their part with `PUT …/progress`) |
+| `in_progress` | `completed` | administer |
 | `in_progress` | `cancelled` | administer |
 | `completed`, `cancelled` | `new` (reopen) | administer |
 
 Other rules:
+- **Finished parts and review tasks (V2).** Flagging a part (`PUT …/progress` with `finished: true`) records `part_finished`, moves a `new` task to `in_progress`, and creates (or reopens) one **review task** per (task, assignee): `kind: review`, `review_of_task_id`, `review_member_id`, the original title, same scope, created_by = the original creator, assignees = the original creator (if an active Member) plus the active Team Leader(s)/Administration Manager(s) over the scope (never the flagging Member). Reviewers get a `task_review`/`review_requested` notification; when every assignee has finished, the creator gets `task_update`/`all_parts_finished`. `finished: false` cancels the open review. Closing or cancelling the task closes/cancels its open reviews; reopening it clears all finished flags; removing an assignee drops their flag and cancels their open review; moving the task moves its reviews. `return` clears the flag, completes the review, adds the note as a task comment and sends `task_review`/`returned` to that Member. Review tasks are visible only to their assignees, the creator and scoped managers, can be completed or reopened like any task, but cannot be edited, cancelled via the API rules of edit, moved, given assignees or subtasks (409), are excluded from `GET /tasks/follow`, and have no due date.
 - Subtasks are one level deep, inherit the parent's scope, have their own status, and **move with the parent**. A move removes assignees who are no longer within scope (reason `out_of_scope`) and keeps the scope history.
 - Manual removal cannot remove the last assignee. Automatic removals (§14) may leave a task with none; it stays open.
 - Tasks and comments are never hard-deleted.
@@ -374,6 +380,55 @@ Behavior:
 - On edit, removed templates **cancel** the matching unstarted subtasks. Move trims the series' template assignees to those still eligible. Stop cancels future unstarted occurrences and their unstarted subtasks.
 
 ---
+
+## 9b. Private note (`/api/v1/me/note`) — CurrentAccount (any usable account, Member or not)
+One free-text note per account, readable **only by its owner** (not by System Admins) and never written to the audit log. `NoteResponse`: `body` (≤5000, "" when none), `version` (0 = never saved), `updated_at|null`.
+| Method + path | Body | Success | Errors |
+|---|---|---|---|
+| `GET /me/note` | — | 200 | 401 |
+| `PUT /me/note` | `{body (≤5000, whitespace kept), version}` | 200 (version+1) | 409 the note was saved elsewhere since `version` was read (reload, don't overwrite); 422 |
+First save uses `version: 0`; a second "first save" is also 409.
+
+## 9c. Task requests (`/api/v1/task-requests`) — CurrentAccess
+An Administration (or the leadership, as KORA) asks another Administration for a task. New permissions: `task_request.create` (at the sending unit) and `task_request.respond` (at the target Administration); defaults: Administration Manager, Event/Project Leader, Deputy Leader.
+`RequestResponse`: `id`, `title`, `description|null`, `priority|null`, `due_at|null`, `from_unit_id`, `to_unit_id`, `requested_by_member_id`, `status` (`pending|accepted|rejected|withdrawn`), `decided_by_member_id|null`, `decided_at|null`, `rejection_reason|null`, `resulting_task_id|null`, `created_at`.
+| Method + path | Body | Rule | Errors |
+|---|---|---|---|
+| `GET /task-requests?box=incoming\|outgoing&status=` | — | incoming: to a unit the caller may answer for; outgoing: from a unit the caller may send for, or sent by the caller; newest first | 422 bad box |
+| `POST /task-requests` (201) | `{title, description?, priority?, due_at?, from_unit_id, to_unit_id}` | active Member with `task_request.create` at `from_unit_id`; sender is an active Administration or KORA; target an active Administration, different from the sender | 403; 422 |
+| `GET /task-requests/{id}` | — | parties only | 403; 404 |
+| `POST /task-requests/{id}/accept` | `{assignee_member_ids[≥1]}` | `task_request.respond` at the target; assignees must be eligible Members of the target (top roles excluded). Creates the **real task** in the target Administration in the same transaction (creator = the accepting manager, `from_outside=true`) | 403; 404; 409 not pending / target archived; 422 |
+| `POST /task-requests/{id}/reject` | `{reason (1–1000)}` | respond permission | 403; 404; 409; 422 |
+| `POST /task-requests/{id}/withdraw` | — | the sender only, while pending | 403; 404; 409 |
+First answer wins (row lock); later ones get 409. The sender of an accepted request may **read and comment** on the resulting task (`TaskResponse.requested_by_member_id`, `requested_from_unit_id`) but never edit, change status, move or manage assignees. Notifications: category `task_request` — `received` (to the target Administration's Manager(s); with none active, to the Event Leader and Deputy), `accepted`/`rejected` (to the sender), `withdrawn` (to the target's Manager(s)). Audit: `task_request.created|accepted|rejected|withdrawn` (title cut to 120, **never the reason**). Migration `e1a3c5d7f9b0`.
+
+## 9d. Chat (`/api/v1/chat`) — CurrentAccess, **active Member only** (403 otherwise)
+Direct chats and channels, polling-based (no WebSocket: the deployment is serverless). Conversation kinds: `direct` (two Members), `unit` (a Team, an Administration or the PMO) and `organization` (everyone). **Unit/organization membership is derived** from the current organization, so transfers and deactivations apply by themselves, and whoever is in the unit sees the whole history. **A direct chat is private to its two people (not even a System Admin); to anyone else it is 404.** Message text is never audited, logged or put in a notification.
+`ConversationResponse`: `id`, `kind`, `unit_id|null`, `other_member_id|null` (direct), `last_message|null`, `unread`. `MessageResponse`: `id` (monotonic integer cursor), `conversation_id`, `author_member_id`, `body` ("" once deleted), `created_at`, `edited_at|null`, `deleted`.
+| Method + path | Body | Notes | Errors |
+|---|---|---|---|
+| `GET /chat/conversations` | — | the caller's channels (organization + their Team/Administration/PMO, created on first use) and direct chats, newest activity first | 403 |
+| `POST /chat/conversations/direct` | `{member_id}` | get-or-create with another active Member; same chat from both sides | 422 (self / not an active Member) |
+| `GET /chat/conversations/{id}/messages?after=&before=&limit=` | — | oldest first; no cursor = latest `limit` (default 50, max 100); `after=<id>` = newer (polling); `before=<id>` = page of history | 404 |
+| `POST /chat/conversations/{id}/messages` (201) | `{body (1–2000)}` | marks the sender as read; a direct chat notifies the other person once until they read it | 404; 422; 429 (30 messages/minute) |
+| `POST /chat/conversations/{id}/read` (204) | `{last_read_message_id?}` | default: everything | 404 |
+| `PATCH /chat/messages/{id}` | `{body}` | author only | 403; 404; 409 deleted |
+| `DELETE /chat/messages/{id}` | — | the author, or `chat.moderate` at the channel's unit (organization channel: at KORA); blanks the text; a moderator's delete is audited as `message.moderated_deleted` (ids only). Direct chats have no moderators | 403; 404 |
+New permission `chat.moderate` (Team Leader, Administration Manager, PMO Leader, Event/Project Leader, Deputy Leader at their own unit). New notification category `chat_message`. Migration `f2b4d6e8a0c1`.
+
+## 9e. Badge summary (`GET /api/v1/me/summary`) — CurrentAccount
+Counts only, one query set instead of four pollers. `SummaryResponse`: `notifications_unread` (unread, not deleted), `chat_unread` (unread messages across the caller's chats; 0 unless an active Member), `requests_pending` (pending task requests the caller may answer), `announcements_unread` (published announcements sent to the caller and not opened in their current version), `reviews_open` (open review tasks assigned to the caller). No ETag/304 (deferred).
+
+## 9f. Task files (`/api/v1/tasks/{task_id}/files`) — CurrentAccess
+Files never pass through the API: the client uploads to / downloads from a **private S3-compatible bucket** with short-lived presigned URLs (serverless request bodies are too small). Storage is configured with `KORA_STORAGE_ENDPOINT`, `KORA_STORAGE_BUCKET`, `KORA_STORAGE_REGION`, `KORA_STORAGE_ACCESS_KEY_ID`, `KORA_STORAGE_SECRET_ACCESS_KEY`; when unset, upload and download answer **503** (listing and deleting still work). `FileResponse`: `id`, `task_id`, `kind` (`brief` from whoever manages the task, `delivery` from the assignees), `name`, `size`, `content_type|null`, `uploaded_by_member_id`, `created_at`. The storage key is never returned.
+| Method + path | Body | Rule | Errors |
+|---|---|---|---|
+| `GET /tasks/{id}/files` | — | ready files, oldest first; whoever can view the task | 403; 404 |
+| `POST /tasks/{id}/files` (201) | `{kind, name, size, content_type?}` | `brief`: creator or scoped manager; `delivery`: an assignee; task open (new/in progress) and not a review task; size 1 B–10 MB; extension not in `exe bat cmd com scr msi vbs ps1 sh js jar dll`; max 10 live files per kind; the name is reduced to its own file name. Returns `{file, upload_url, expires_in}`: PUT the raw bytes to `upload_url`. The file stays hidden until completed | 403; 404; 409; 422; 503 |
+| `POST /tasks/{id}/files/{fid}/complete` | — | the uploader only; checks the stored size equals the declared one (else the file is discarded, 422); idempotent. Notifies the creator (`task_update`/`delivery_added`) or the assignees (`file_added`) | 403; 404; 409 not uploaded yet; 422; 503 |
+| `GET /tasks/{id}/files/{fid}/download` | — | access re-checked on every call; returns `{url, expires_in}` for a link that forces a download (`attachment`, `application/octet-stream`) | 403; 404; 503 |
+| `DELETE /tasks/{id}/files/{fid}` (204) | — | the uploader or whoever administers the task, while the task is open; soft delete | 403; 404; 409 |
+Audit: `task_file.added|removed` (task id, kind, size; **never the name**). Pending uploads older than an hour stop counting toward the limit; there is no scheduler, so abandoned objects are not purged yet. No malware scanning yet (decide before production). Migration `a3c5e7f9b1d2`.
 
 ## 10. Announcements (`/api/v1/announcements`)
 
@@ -438,6 +493,9 @@ All routes use CurrentAccess, and each user acts only on their own records. `Not
 | `announcement` | `published` | `announcement_new` | direct recipients |
 | `announcement` | `edited` | `announcement_change` | direct recipients (published announcements only) |
 | `announcement` | `withdrawn` | `announcement_change` | direct recipients; `summary` is null |
+| `task` | `review_requested` | `task_review` | the reviewers of a finished part (source = the review task) |
+| `task` | `returned` | `task_review` | the Member whose work was sent back |
+| `task` | `all_parts_finished` | `task_update` | the creator |
 | `calendar_event` | `invited` | `calendar_event` | each new invitee |
 | `calendar_event` | `updated`, `cancelled` | `calendar_event` | current invitees |
 
@@ -594,6 +652,15 @@ Remaining (unchanged on purpose, or awaiting a decision):
 | 9 | POST | `/api/v1/organization/units` | access |
 | 10 | GET | `/api/v1/organization/units/{unit_id}` | access |
 | 10a | GET | `/api/v1/organization/members` | access |
+| 10b | GET | `/api/v1/organization/structure` | access (active Member) |
+| 10c | GET, PUT | `/api/v1/me/note` | account |
+| 10d | GET, POST | `/api/v1/task-requests` | access |
+| 10e | GET | `/api/v1/task-requests/{id}` | access |
+| 10g | GET, POST, PATCH, DELETE | `/api/v1/chat/...` (§9d) | access (active Member) |
+| 10h | GET | `/api/v1/me/summary` | account |
+| 10i | GET, POST | `/api/v1/tasks/{id}/files` | access |
+| 10j | POST, GET, DELETE | `/api/v1/tasks/{id}/files/{fid}/complete\|download\|(delete)` | access |
+| 10f | POST | `/api/v1/task-requests/{id}/accept\|reject\|withdraw` | access |
 | 11 | POST | `/api/v1/organization/units/{unit_id}/move` | access |
 | 12 | POST | `/api/v1/organization/units/{unit_id}/archive` | access |
 | 13 | GET | `/api/v1/admin/members` | admin |
@@ -674,6 +741,16 @@ Guards: **session** = AuthenticatedSession (a temporary password is allowed); **
 - New permissions `calendar.view_administration` (default: Team Leader, Administration Manager) and `calendar.view_all` (default: Event Leader, Deputy, PMO Leader, PMO Member), grantable by overrides.
 - `GET /calendar/administration?from&to` and `GET /calendar/all?from&to` (403 without the permission): `{starts_at, ends_at, tasks: [{task_id, title, due_at, status, scope_unit_id, unit_name, administration_id|null, administration_name|null, from_outside}]}`. The first covers the Administration containing each unit where the caller holds the permission; the second every unit.
 - Arabic names: قائد الحدث، نائب قائد الحدث، مدير المشروع (PMO Leader)، مسؤول متابعة (PMO Member)، مدير الإدارة، قائد الفريق؛ the PMO unit is named «مكتب إدارة المشروع (PMO)».
+
+## Addendum 2026-10-28 (V2, breaking)
+- **An assignee can no longer complete a task** (`POST /tasks/{id}/status` → `completed` is 403 for them); they use `PUT /tasks/{id}/progress`. Creator and scoped managers are unchanged. New migration `c9e1a3b5d7f8` (`task_part_progress`, `tasks.kind/review_of_task_id/review_member_id`, notification category `task_review`). New audit actions: `task.part_finished`, `task.part_reopened`, `task.part_returned`, `task.review_created`.
+- `TaskResponse` gained `kind`, `review_of_task_id`, `review_member_id`, `finished_member_ids`. Operations: 83.
+- **B2:** `GET /organization/structure` added (§8.1b). Operations so far: see the last line of this addendum.
+- **B4:** `GET`/`PUT /me/note` added (§9b), migration `d0f2b4c6e8a9`. Operations so far: see the last line of this addendum.
+- **B5:** task requests added (§9c), migration `e1a3c5d7f9b0`, permissions `task_request.create|respond`, notification category `task_request`; `TaskResponse` gained `requested_by_member_id`, `requested_from_unit_id`. Operations so far: see the last line of this addendum.
+- **B6:** chat added (§9d), migration `f2b4d6e8a0c1`, permission `chat.moderate`, category `chat_message`. Operations so far: see the last line of this addendum.
+- **B7:** `GET /me/summary` added (§9e). Operations so far: see the last line of this addendum.
+- **B3:** task files added (§9f), migration `a3c5e7f9b1d2`, storage settings `KORA_STORAGE_*`. **Total mounted operations after B1-B7: 110** (counted from OpenAPI).
 
 ## Addendum 2026-10-19
 - New permission `task.follow` (default: PMO Leader, PMO Member; grantable): read access to every task, held at any unit. `GET /tasks/follow?status=` (403 without it) returns `FollowTaskResponse[]` = `TaskResponse` + `unit_name`, `administration_id|null`, `administration_name|null`, `assignee_names: string[]`. Followers can open tasks but cannot edit, change status or comment; the normal `GET /tasks` list is unchanged (the PMO's own tasks only).

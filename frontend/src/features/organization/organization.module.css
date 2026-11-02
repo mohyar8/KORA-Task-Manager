@@ -5,7 +5,7 @@
 .row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-3) var(--space-4); background: var(--ui-surface); border: 1px solid var(--ui-border); border-radius: var(--radius-control); }
 .archived { background: var(--ui-surface-soft); color: var(--ui-muted); }
 .info { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); min-inline-size: 0; }
-.name { font-weight: 700; color: var(--kora-navy); overflow-wrap: anywhere; }
+.name { font-weight: 700; color: var(--ui-link); overflow-wrap: anywhere; }
 .archived .name { color: var(--ui-muted); }
 .meta { color: var(--ui-muted); font-size: var(--text-sm); }
 .actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }

@@ -38,7 +38,9 @@ async def test_one_subtask_level_with_inherited_scope_and_independent_status(
     assert (await _subtask(api, world, parent["id"], "m_b1")).status_code == 422  # out of scope
 
     sub_assignee = await login("m_a1b")
-    done = await sub_assignee.post(f"{TASKS}/{subtask['id']}/status", {"status": "completed"})
+    blocked = await sub_assignee.post(f"{TASKS}/{subtask['id']}/status", {"status": "completed"})
+    assert blocked.status_code == 403  # an assignee flags their part; the creator closes
+    done = await api.post(f"{TASKS}/{subtask['id']}/status", {"status": "completed"})
     assert done.status_code == 200
     assert (await api.get(f"{TASKS}/{parent['id']}")).json()["status"] == "new"
     listed = (await api.get(f"{TASKS}/{parent['id']}/subtasks")).json()

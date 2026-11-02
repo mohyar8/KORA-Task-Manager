@@ -28,6 +28,11 @@ TASK_MOVED = action(
 TASK_ASSIGNEE_ADDED = action("task.assignee_added", TASK, "member_id")
 TASK_ASSIGNEE_REMOVED = action("task.assignee_removed", TASK, "member_id", "end_reason")
 
+TASK_PART_FINISHED = action("task.part_finished", TASK, "member_id")
+TASK_PART_REOPENED = action("task.part_reopened", TASK, "member_id")
+TASK_PART_RETURNED = action("task.part_returned", TASK, "member_id")
+TASK_REVIEW_CREATED = action("task.review_created", TASK, "review_of_task_id", "member_id")
+
 COMMENT = "task_comment"
 COMMENT_CREATED = action("task_comment.created", COMMENT, "task_id")
 COMMENT_EDITED = action("task_comment.edited", COMMENT, "task_id", "edited_at")

@@ -18,5 +18,7 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./src/test-setup.ts'],
     css: false,
+    // The existing feature tests exercise the mock layer; real-API wiring is tested with vi.stubEnv.
+    env: { VITE_MOCK: 'true' },
   },
 })

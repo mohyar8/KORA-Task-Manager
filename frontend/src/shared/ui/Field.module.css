@@ -4,11 +4,11 @@
 .control {
   width: 100%; min-height: var(--min-target); padding: var(--space-2) var(--space-4);
   background: var(--ui-surface); border: 0; border-radius: var(--radius-control);
-  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--kora-navy) 22%, white);
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--kora-navy) 22%, var(--ui-mix));
   font-size: var(--text-md); transition: box-shadow 0.15s;
 }
-.control:hover { box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--kora-navy) 55%, white); }
-.control:focus-visible { box-shadow: inset 0 0 0 2px var(--kora-fuchsia), 0 0 0 4px color-mix(in srgb, var(--kora-fuchsia) 18%, white); border-radius: var(--radius-control); }
+.control:hover { box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--kora-navy) 55%, var(--ui-mix)); }
+.control:focus-visible { box-shadow: inset 0 0 0 2px var(--kora-fuchsia), 0 0 0 4px color-mix(in srgb, var(--kora-fuchsia) 18%, var(--ui-mix)); border-radius: var(--radius-control); }
 .control[aria-invalid='true'] { box-shadow: inset 0 0 0 2px var(--kora-coral); }
 .control:disabled { background: var(--ui-surface-soft); color: var(--ui-muted); cursor: not-allowed; }
 .textarea { min-height: 112px; resize: vertical; }

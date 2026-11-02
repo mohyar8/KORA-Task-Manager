@@ -1,7 +1,7 @@
 .filters { display: grid; gap: var(--space-3); grid-template-columns: 1fr; margin-block-end: var(--space-4); }
 @media (min-width: 720px) { .filters { grid-template-columns: 2fr 1fr 1fr 1fr; align-items: end; } }
 .count { color: var(--ui-muted); font-size: var(--text-sm); margin-block-end: var(--space-2); }
-.nameLink { font-weight: 700; color: var(--kora-navy); }
+.nameLink { font-weight: 700; color: var(--ui-link); }
 .mono { direction: ltr; unicode-bidi: plaintext; }
 .form { display: grid; gap: var(--space-4); }
 .twoCol { display: grid; gap: var(--space-4); }

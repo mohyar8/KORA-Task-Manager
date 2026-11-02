@@ -2,16 +2,17 @@ import { useState } from 'react'
 import { useI18n } from '@/shared/i18n/i18n'
 import { Button } from '@/shared/ui/Button'
 import { Chip, InlineError, useToast } from '@/shared/ui/Feedback'
-import { SelectField } from '@/shared/ui/Field'
+import { SelectField, TextAreaField } from '@/shared/ui/Field'
 import { Card } from '@/shared/ui/Layout'
 import { initialOf } from '@/shared/lib/initial'
 import { Avatar, Row, RowList } from '@/shared/ui/RowList'
 import { ConfirmDialog, Modal } from '@/shared/ui/Modal'
 import { isTopRole, useAllMembers, useMemberNames } from '@/features/members/directory'
-import { useAddAssignee, useRemoveAssignee } from './api'
+import { useAddAssignee, useRemoveAssignee, useReturnPart } from './api'
 import { canAdminister, isOpen, type Viewer } from './rules'
 import type { Task } from './types'
 import styles from './tasks.module.css'
+
 
 export function AssigneesCard({ task, viewer }: { task: Task; viewer: Viewer }) {
   const { t } = useI18n()
@@ -26,6 +27,14 @@ export function AssigneesCard({ task, viewer }: { task: Task; viewer: Viewer }) 
   const [removing, setRemoving] = useState<string | null>(null)
 
   const admin = canAdminister(task, viewer) && isOpen(task)
+  // Each assignee works on their own copy: the leader sees who has finished their part.
+  const done = new Set(task.finished_member_ids)
+  const tracking = canAdminister(task, viewer) && isOpen(task) && task.kind === 'regular'
+  const finished = task.assignee_member_ids.filter((id) => done.has(id)).length
+  const giveBack = useReturnPart(task.id)
+  const [returning, setReturning] = useState<string | null>(null)
+  const [note, setNote] = useState('')
+  const total = task.assignee_member_ids.length
   const pool = other ? (all.data ?? []) : names.members.filter((m) => !isTopRole(m.role_key))
   const candidates = pool.filter((m) => !task.assignee_member_ids.includes(m.id))
   const externalIds = new Set(task.external_assignees.map((e) => e.id))
@@ -39,6 +48,12 @@ export function AssigneesCard({ task, viewer }: { task: Task; viewer: Viewer }) 
           <Button variant="secondary" onClick={() => { add.reset(); setPick(''); setOther(false); setAdding(true) }}>{t('tasks.assignees.add')}</Button>
         )}
       </div>
+      {tracking && total > 0 && (
+        <p className={styles.hint}>
+          {t('taskPart.progress', { done: finished, total })}
+          {finished === total && <> — <b>{t('taskPart.allDone')}</b></>}
+        </p>
+      )}
       {task.assignee_member_ids.length === 0 ? (
         <p className={styles.hint}>{t('tasks.assignees.none')}</p>
       ) : (
@@ -49,11 +64,26 @@ export function AssigneesCard({ task, viewer }: { task: Task; viewer: Viewer }) 
               index={i}
               title={<>{nameOf(id)}{externalIds.has(id) && <> <Chip tone="info">{t('tasks.assignees.externalChip')}</Chip></>}</>}
               leading={<Avatar tone="fuchsia" size={40}>{initialOf(nameOf(id))}</Avatar>}
-              trailing={admin && <Button variant="ghost" onClick={() => { remove.reset(); setRemoving(id) }}>{t('tasks.assignees.remove')}</Button>}
+              trailing={<>{tracking && (done.has(id) ? <><Chip tone="success">{t('taskPart.finished')}</Chip><Button variant="ghost" onClick={() => { giveBack.reset(); setNote(''); setReturning(id) }}>{t('taskPart.return')}</Button></> : <Chip>{t('taskPart.working')}</Chip>)}{admin && <Button variant="ghost" onClick={() => { remove.reset(); setRemoving(id) }}>{t('tasks.assignees.remove')}</Button>}</>}
             />
           ))}
         </RowList>
       )}
+
+      <Modal
+        open={returning !== null}
+        title={t('taskPart.return.title')}
+        onClose={() => setReturning(null)}
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setReturning(null)}>{t('common.cancel')}</Button>
+            <Button loading={giveBack.isPending} onClick={() => returning && giveBack.mutate({ member_id: returning, note: note.trim() || null }, { onSuccess: () => { setReturning(null); toast(t('taskPart.return.done')) } })}>{t('taskPart.return.confirm')}</Button>
+          </>
+        }
+      >
+        <TextAreaField label={t('taskPart.return.note')} value={note} maxLength={5000} onChange={(e) => setNote(e.target.value)} />
+        <InlineError error={giveBack.error} />
+      </Modal>
 
       <Modal
         open={adding}

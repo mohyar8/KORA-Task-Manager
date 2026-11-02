@@ -4,6 +4,9 @@ import { RouterProvider } from 'react-router'
 import './app/styles/global.css'
 import { Providers } from './app/Providers'
 import { router } from './app/router'
+import { applyTheme } from './shared/lib/theme'
+
+applyTheme()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

@@ -6,7 +6,7 @@
 .danger { background: var(--state-danger-bg); color: var(--state-danger); }
 
 .skeleton { display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-4) 0; }
-.skeletonLine { display: block; block-size: 16px; border-radius: 8px; background: linear-gradient(90deg, var(--ui-navy-tint), color-mix(in srgb, var(--kora-fuchsia) 10%, white), var(--ui-navy-tint)); background-size: 200% 100%; animation: shimmer 1.4s linear infinite; }
+.skeletonLine { display: block; block-size: 16px; border-radius: 8px; background: linear-gradient(90deg, var(--ui-navy-tint), color-mix(in srgb, var(--kora-fuchsia) 10%, var(--ui-mix)), var(--ui-navy-tint)); background-size: 200% 100%; animation: shimmer 1.4s linear infinite; }
 @keyframes shimmer { to { background-position: -200% 0; } }
 
 .block { display: flex; flex-direction: column; align-items: center; text-align: center; gap: var(--space-3); padding: var(--space-8) var(--space-4); max-inline-size: 520px; margin-inline: auto; }
@@ -17,7 +17,7 @@
 
 .toasts { position: fixed; inset-block-end: calc(var(--bottom-nav-height) + var(--space-3)); inset-inline: var(--space-4); display: flex; flex-direction: column; gap: var(--space-2); align-items: center; pointer-events: none; z-index: 60; }
 @media (min-width: 900px) { .toasts { inset-block-end: var(--space-5); } }
-.toast { animation: rise 0.3s var(--ease) both; pointer-events: auto; max-inline-size: 460px; padding: var(--space-3) var(--space-5); border-radius: 999px; box-shadow: var(--shadow-overlay); font-size: var(--text-sm); font-weight: 500; background: var(--kora-navy-deep); color: #fff; }
+.toast { animation: rise 0.3s var(--ease) both; pointer-events: auto; max-inline-size: 460px; padding: var(--space-3) var(--space-5); border-radius: 999px; box-shadow: var(--shadow-overlay); font-size: var(--text-sm); font-weight: 500; background: var(--kora-night); color: #fff; }
 .toast_danger { background: var(--coral-deep); }
 .toast_success { border-inline-start: 8px solid var(--kora-green); }
 

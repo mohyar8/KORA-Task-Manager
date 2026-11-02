@@ -22,7 +22,13 @@ from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.types import Uuid
 
 from kora_api.core.database import Base
-from kora_api.tasks.constants import AssignmentEndReason, SeriesStatus, TaskPriority, TaskStatus
+from kora_api.tasks.constants import (
+    AssignmentEndReason,
+    SeriesStatus,
+    TaskKind,
+    TaskPriority,
+    TaskStatus,
+)
 
 _VALID_PERIOD = "valid_to IS NULL OR valid_to > valid_from"
 
@@ -67,6 +73,18 @@ class Task(Base):
     __tablename__ = "tasks"
     __table_args__ = (
         CheckConstraint("parent_id IS NULL OR parent_id <> id", name="not_own_parent"),
+        CheckConstraint(
+            "(kind = 'review') = (review_of_task_id IS NOT NULL AND review_member_id IS NOT NULL)",
+            name="review_fields",
+        ),
+        # One review task per (task, assignee); re-finishing a part reopens it.
+        Index(
+            "uq_tasks_review",
+            "review_of_task_id",
+            "review_member_id",
+            unique=True,
+            postgresql_where=text("review_of_task_id IS NOT NULL"),
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
@@ -89,6 +107,20 @@ class Task(Base):
     # Snapshot at creation: the creator was not the Team Leader or Administration Manager of the
     # task's scope (the Event Leader, Deputy, PMO Leader, or a Member granted task.create).
     from_outside: Mapped[bool] = mapped_column(default=False, server_default=text("false"))
+    # `review` tasks are system-made for the leaders: "review <Member>'s work on <task>".
+    kind: Mapped[TaskKind] = mapped_column(
+        Enum(TaskKind, name="task_kind", values_callable=_enum_values),
+        default=TaskKind.REGULAR,
+        server_default=text("'regular'"),
+    )
+    review_of_task_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("tasks.id"))
+    review_member_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("members.id"))
+    # Set when the task came from another Administration's request: the person who asked (read and
+    # comment only) and the unit they asked from (for the "request from X" badge).
+    requested_by_member_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("members.id"), index=True
+    )
+    requested_from_unit_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("org_units.id"))
     created_at: Mapped[datetime]
     updated_at: Mapped[datetime]
     # First time work started (in_progress or completed); never cleared.
@@ -147,6 +179,17 @@ class TaskAssignment(Base):
     end_reason: Mapped[AssignmentEndReason | None] = mapped_column(
         Enum(AssignmentEndReason, name="task_assignment_end_reason", values_callable=_enum_values)
     )
+
+
+class TaskPartProgress(Base):
+    """An assignee has finished their part of a task. A row exists only while it holds; the
+    history (finished, reopened, returned) is in `task_events`."""
+
+    __tablename__ = "task_part_progress"
+
+    task_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tasks.id"), primary_key=True)
+    member_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("members.id"), primary_key=True)
+    finished_at: Mapped[datetime]
 
 
 class TaskComment(Base):

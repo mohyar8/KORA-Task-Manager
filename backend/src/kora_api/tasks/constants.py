@@ -12,6 +12,12 @@ class TaskStatus(enum.StrEnum):
 OPEN_STATUSES = frozenset({TaskStatus.NEW, TaskStatus.IN_PROGRESS})
 
 
+class TaskKind(enum.StrEnum):
+    REGULAR = "regular"
+    # Created automatically for the leaders when an assignee finishes their part of a task.
+    REVIEW = "review"
+
+
 class TaskPriority(enum.StrEnum):
     LOW = "low"
     NORMAL = "normal"
@@ -45,6 +51,11 @@ class EventKind(enum.StrEnum):
     COMMENT_ADDED = "comment_added"
     COMMENT_EDITED = "comment_edited"
     COMMENT_DELETED = "comment_deleted"
+    PART_FINISHED = "part_finished"
+    PART_REOPENED = "part_reopened"
+    PART_RETURNED = "part_returned"
+    REVIEW_CREATED = "review_created"
+    REVIEW_CLOSED = "review_closed"
 
 
 RECURRENCE_INTERVAL = timedelta(weeks=1)

@@ -133,3 +133,23 @@ class DirectoryMemberResponse(BaseModel):
     full_name: str
     team_id: uuid.UUID | None
     role_key: RoleKey | None
+
+
+# --- Structure ----------------------------------------------------------------------------------
+
+
+class StructureMemberResponse(BaseModel):
+    member_id: uuid.UUID
+    full_name: str
+    role_key: RoleKey
+
+
+class StructureNodeResponse(BaseModel):
+    unit_id: uuid.UUID
+    name: str
+    kind: UnitKind
+    # Members of this unit who lead it (Event/Project Leader, PMO Leader, Administration Manager,
+    # Team Leader); possibly several Team Leaders.
+    leader_ids: list[uuid.UUID]
+    members: list[StructureMemberResponse]
+    children: list["StructureNodeResponse"]

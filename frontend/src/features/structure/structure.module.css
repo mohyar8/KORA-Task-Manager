@@ -1,0 +1,63 @@
+.page { display: grid; gap: var(--space-4); min-block-size: 0; }
+.treeWrap { min-inline-size: 0; }
+.title { margin: 0; font-size: var(--text-xl); }
+.sub { margin: var(--space-1) 0 var(--space-5); color: var(--ui-muted); font-size: var(--text-sm); }
+
+/* Top-down chart: parent on top, children in a row beneath, joined by lines. */
+.chart, .chart ul { list-style: none; margin: 0; padding: 0; display: flex; justify-content: center; }
+.chart { inline-size: max-content; min-inline-size: 100%; }
+.chart ul { position: relative; padding-block-start: 28px; }
+.chart li { position: relative; display: flex; flex-direction: column; align-items: center; padding: 28px 10px 0; }
+.chart > li { padding-block-start: 0; }
+/* the horizontal bar and the drop to each child */
+.chart li::before, .chart li::after { content: ''; position: absolute; inset-block-start: 0; inline-size: 50%; block-size: 28px; border-block-start: 2px solid var(--ui-border); }
+.chart li::before { inset-inline-start: 0; }
+.chart li::after { inset-inline-start: 50%; border-inline-start: 2px solid var(--ui-border); }
+.chart li:first-child::before, .chart li:last-child::after { border-block-start: 0; }
+.chart li:only-child::before { display: none; }
+.chart li:only-child::after { border-block-start: 0; }
+.chart > li::before, .chart > li::after { display: none; }
+/* the line from a parent card down to its row of children */
+.chart ul::before { content: ''; position: absolute; inset-block-start: 0; inset-inline-start: 50%; block-size: 28px; border-inline-start: 2px solid var(--ui-border); }
+
+.unit { inline-size: 232px; display: grid; gap: var(--space-2); justify-items: stretch; padding: var(--space-3); background: var(--ui-surface); border: 1px solid var(--ui-border); border-block-start: 5px solid var(--unit); border-radius: 12px; opacity: 0.9; text-align: start; }
+.root { inline-size: 260px; }
+.unit header { display: flex; align-items: center; gap: var(--space-2); color: var(--unit); }
+.unit h2 { margin: 0; font-size: var(--text-md); color: var(--ui-text); flex: 1; min-inline-size: 0; overflow-wrap: anywhere; }
+.kind { font-size: var(--text-xs); color: var(--ui-muted); margin-block-start: -4px; }
+.badge { font-size: 11px; font-weight: 700; color: #fff; background: var(--kora-coral); border-radius: 999px; padding: 1px var(--space-2); }
+/* Your own unit stands out: a stronger frame, a tint and full opacity. */
+.mineUnit { opacity: 1; box-shadow: 0 0 0 2px var(--unit), 0 12px 30px -14px var(--unit); background: color-mix(in srgb, var(--unit) 10%, var(--ui-surface)); }
+
+/* The person in charge of the unit gets their own highlighted block. */
+.leader { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2); border: 1.5px solid var(--unit); border-radius: 10px; background: color-mix(in srgb, var(--unit) 18%, transparent); color: var(--ui-text); font: inherit; cursor: pointer; text-align: start; }
+.leader:hover, .leader[aria-pressed='true'] { background: color-mix(in srgb, var(--unit) 32%, transparent); }
+.avatar { flex: none; display: grid; place-items: center; inline-size: 36px; block-size: 36px; border-radius: 50%; background: var(--unit); color: #fff; font-weight: 800; }
+.who { display: grid; min-inline-size: 0; }
+.who small { font-size: 11px; color: var(--ui-muted); }
+.who b { font-size: var(--text-sm); overflow-wrap: anywhere; }
+
+.chart ul.members { display: grid; justify-content: stretch; gap: 2px; padding: 0; position: static; }
+.chart ul.members::before { display: none; }
+.chart .members li { display: block; padding: 0; }
+.chart .members li::before, .chart .members li::after { display: none; }
+.member { display: flex; align-items: center; gap: var(--space-2); inline-size: 100%; min-block-size: 32px; padding: 2px var(--space-2); border: 0; border-radius: 8px; background: transparent; color: var(--ui-text); font: inherit; font-size: var(--text-sm); cursor: pointer; text-align: start; }
+.member:hover, .member[aria-pressed='true'] { background: var(--ui-navy-tint); }
+.dot { flex: none; display: grid; place-items: center; inline-size: 22px; block-size: 22px; border-radius: 50%; background: var(--ui-navy-tint); color: var(--ui-link); font-size: 11px; font-weight: 700; }
+.me b, .me i, .me { font-style: normal; }
+.member.me { color: var(--kora-coral); font-weight: 700; }
+.member i { font-style: normal; font-weight: 400; }
+
+.card { display: grid; justify-items: center; gap: var(--space-2); text-align: center; padding-block: var(--space-2); }
+.cardRole { margin: 0; font-weight: 700; }
+.cardUnit { margin: 0; color: var(--ui-muted); }
+.message { margin-block-start: var(--space-3); display: inline-flex; align-items: center; gap: var(--space-2); min-block-size: 44px; padding: 0 var(--space-5); border-radius: 999px; background: #e0513f; color: #fff; font-weight: 700; text-decoration: none; }
+.message:hover { color: #fff; background: #f26557; }
+
+.treeWrap { overflow-x: auto; }
+/* Desktop: fixed page. The chart takes the whole page area and scrolls inside it. */
+@media (min-width: 900px) {
+  .page { block-size: 100%; }
+  .treeWrap { overflow: auto; block-size: 100%; padding-block-end: var(--space-4); }
+}
+.bigAvatar { display: grid; place-items: center; inline-size: 72px; block-size: 72px; border-radius: 50%; color: #fff; font-size: var(--text-xl); font-weight: 700; }

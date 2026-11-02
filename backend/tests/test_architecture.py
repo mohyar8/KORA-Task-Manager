@@ -41,6 +41,8 @@ def _imports(package: str) -> list[tuple[str, str]]:
         ("tasks", ("kora_api.announcements", "kora_api.calendar")),
         ("announcements", ("kora_api.tasks", "kora_api.calendar")),
         ("notifications", ("kora_api.calendar",)),
+        ("messaging", ("kora_api.tasks", "kora_api.task_requests", "kora_api.notes")),
+        ("notes", ("kora_api.tasks", "kora_api.organization", "kora_api.notifications")),
         ("organization", ("kora_api.calendar",)),
         (
             "audit",
@@ -82,6 +84,9 @@ async def test_seeded_catalog_matches_code(db_session: AsyncSession) -> None:
         "calendar.view_administration",
         "calendar.view_all",
         "league.manage",
+        "task_request.create",
+        "task_request.respond",
+        "chat.moderate",
     }
 
     roles = {r.key: (r.name, r.unit_kind) for r in await db_session.scalars(select(OrgRole))}
@@ -102,6 +107,21 @@ async def test_seeded_catalog_matches_code(db_session: AsyncSession) -> None:
         | {(role, "task.manage") for role in task_managers}
         | {("pmo_leader", "task.follow"), ("pmo_member", "task.follow")}
         | {("pmo_leader", "league.manage")}
+        | {
+            (role, permission)
+            for role in ("administration_manager", "event_project_leader", "deputy_leader")
+            for permission in ("task_request.create", "task_request.respond")
+        }
+        | {
+            (role, "chat.moderate")
+            for role in (
+                "team_leader",
+                "administration_manager",
+                "pmo_leader",
+                "event_project_leader",
+                "deputy_leader",
+            )
+        }
         | {(role, "announcement.publish") for role in task_managers}
         | {(role, "announcement.manage") for role in task_managers}
         | {(role, "calendar.create") for role in every_role}

@@ -9,11 +9,11 @@ import { account as baseAccount, accessFor, installFakeApi, type FakeApi } from 
 import type { Task } from './types'
 
 const sara = { ...baseAccount, id: 'a-sara', username: 'sara', member_id: 'm-sara' }
-const access = accessFor(['task.view@u-team', 'task.create@u-team', 'task.manage@u-team'])
+const access = accessFor(['task.view@u-team', 'task.create@u-team', 'task.manage@u-team', 'task.manage@u-admin'], true)
 const task = (over: Partial<Task>): Task => ({
   id: 't1', title: 'Order kits', description: null, priority: 'high', due_at: null, status: 'new', scope_unit_id: 'u-team', parent_id: null,
   series_id: null, created_by_account_id: 'a-sara', created_by_member_id: 'm-sara', created_at: '2026-10-10T08:00:00Z',
-  updated_at: '2026-10-10T08:00:00Z', started_at: null, assignee_member_ids: ['m-sara'], external_assignees: [], from_outside: false, ...over,
+  updated_at: '2026-10-10T08:00:00Z', started_at: null, assignee_member_ids: ['m-sara'], external_assignees: [], from_outside: false, kind: 'regular', review_of_task_id: null, review_member_id: null, finished_member_ids: [], ...over,
 })
 
 describe('Task board', () => {

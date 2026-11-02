@@ -27,4 +27,11 @@ describe('permissions', () => {
   it('shows Home to everyone (no permission required)', () => {
     expect(visibleNavItems(null, false).map((i) => i.to)).toContain('/')
   })
+
+  it('lists the all-tasks page only for managers of an Administration, not team leaders', () => {
+    const team = accessFor(['task.view@u-team', 'task.manage@u-team'], true) as unknown as EffectiveAccess
+    const administration = accessFor(['task.view@u-admin', 'task.manage@u-admin'], true) as unknown as EffectiveAccess
+    expect(visibleNavItems(team, false).map((i) => i.to)).not.toContain('/tasks')
+    expect(visibleNavItems(administration, false).map((i) => i.to)).toContain('/tasks')
+  })
 })

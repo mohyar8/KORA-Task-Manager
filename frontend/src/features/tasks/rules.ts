@@ -14,16 +14,21 @@ export interface Viewer {
 
 export const isCreator = (task: Task, v: Viewer) => task.created_by_account_id === v.accountId
 export const isAssignee = (task: Task, v: Viewer) => !!v.memberId && task.assignee_member_ids.includes(v.memberId)
+/** Asked for this task through a request: reads and comments, never administers. */
+export const isRequester = (task: Task, v: Viewer) => !!v.memberId && task.requested_by_member_id === v.memberId
 export const isScopedManager = (task: Task, v: Viewer) => canAt(v.access, 'task.manage', task.scope_unit_id)
 
 /** Edit, cancel, reopen, manage assignees, move: the creator (as a Member) or a scoped manager. */
 export const canAdminister = (task: Task, v: Viewer) =>
   (!!v.memberId && task.created_by_member_id === v.memberId) || isScopedManager(task, v)
 
+/** Close (or reopen) a task: the creator or a scoped leader/manager. */
+export const canFinish = (task: Task, v: Viewer) => canAdminister(task, v)
+
 /** Move work forward: an assignee or a scoped manager. */
 export const canWork = (task: Task, v: Viewer) => isAssignee(task, v) || isScopedManager(task, v)
 
-export const canComment = (task: Task, v: Viewer) => isCreator(task, v) || isAssignee(task, v) || isScopedManager(task, v)
+export const canComment = (task: Task, v: Viewer) => isCreator(task, v) || isAssignee(task, v) || isScopedManager(task, v) || isRequester(task, v)
 
 /** Create a subtask: an active Member with task.create at the parent's scope. */
 export const canCreateSubtask = (task: Task, v: Viewer) =>
@@ -33,10 +38,11 @@ export function allowedTransitions(task: Task, v: Viewer): TaskStatus[] {
   const work = canWork(task, v)
   const admin = canAdminister(task, v)
   switch (task.status) {
+    // A plain assignee can start work but never close it: they flag their part and the leader closes the task.
     case 'new':
-      return [...(work ? (['in_progress', 'completed'] as const) : []), ...(admin ? (['cancelled'] as const) : [])]
+      return [...(work ? (['in_progress'] as const) : []), ...(admin ? (['completed', 'cancelled'] as const) : [])]
     case 'in_progress':
-      return [...(work ? (['completed'] as const) : []), ...(admin ? (['cancelled'] as const) : [])]
+      return admin ? ['completed', 'cancelled'] : []
     case 'completed':
     case 'cancelled':
       return admin ? ['new'] : []

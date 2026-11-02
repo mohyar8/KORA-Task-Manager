@@ -3,10 +3,10 @@ import { http } from '@/shared/api/http'
 
 // Contract §11.
 export type NotificationCategory =
-  | 'task_assignment' | 'task_update' | 'task_comment' | 'announcement_new' | 'announcement_change' | 'calendar_event'
+  | 'task_assignment' | 'task_update' | 'task_comment' | 'announcement_new' | 'announcement_change' | 'calendar_event' | 'task_review' | 'task_request' | 'chat_message'
 
 export const CATEGORIES: NotificationCategory[] = [
-  'task_assignment', 'task_update', 'task_comment', 'announcement_new', 'announcement_change', 'calendar_event',
+  'task_assignment', 'task_update', 'task_comment', 'announcement_new', 'announcement_change', 'calendar_event', 'task_review', 'task_request', 'chat_message',
 ]
 
 export interface AppNotification {
@@ -91,6 +91,8 @@ export function sourceLink(n: Pick<AppNotification, 'source_type' | 'source_id'>
     case 'task_series': return `/task-series/${n.source_id}`
     case 'announcement': return `/announcements/${n.source_id}`
     case 'calendar_event': return `/calendar/${n.source_id}`
+    case 'task_request': return '/requests'
+    case 'conversation': return `/chat/${n.source_id}`
     default: return null
   }
 }

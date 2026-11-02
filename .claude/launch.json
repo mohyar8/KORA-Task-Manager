@@ -1,6 +1,26 @@
 {
   "version": "0.0.1",
   "configurations": [
-    { "name": "kora-frontend", "runtimeExecutable": "npm", "runtimeArgs": ["--prefix", "frontend", "run", "dev"], "port": 5173 }
+    {
+      "name": "kora-backend-demo",
+      "runtimeExecutable": "powershell",
+      "runtimeArgs": [
+        "-NoProfile",
+        "-Command",
+        "$env:KORA_ENVIRONMENT='local'; $env:KORA_DATABASE_URL='postgresql+asyncpg://kora:kora@127.0.0.1:5440/kora_demo'; Set-Location backend; & .\\.venv\\Scripts\\python.exe -m uvicorn kora_api.main:app --host 127.0.0.1 --port 8000"
+      ],
+      "port": 8000
+    },
+    {
+      "name": "kora-frontend",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "frontend",
+        "run",
+        "dev"
+      ],
+      "port": 5173
+    }
   ]
 }

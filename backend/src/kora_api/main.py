@@ -10,8 +10,11 @@ from kora_api.calendar.service import visible_event_ids
 from kora_api.core.config import Settings, get_settings
 from kora_api.core.database import create_engine, create_session_factory
 from kora_api.core.errors import document_validation_errors, register_error_handlers
+from kora_api.core.storage import build_storage
+from kora_api.messaging.service import visible_conversation_ids
 from kora_api.organization import events as organization_events
 from kora_api.organization.facts import SqlOrganizationFacts
+from kora_api.task_requests.service import visible_request_ids
 from kora_api.tasks.series import visible_series_ids
 from kora_api.tasks.service import on_membership_changed as tasks_on_membership_changed
 from kora_api.tasks.service import visible_task_ids
@@ -36,6 +39,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         openapi_url="/openapi.json" if docs else None,
     )
     app.state.session_factory = create_session_factory(engine)
+    # Task files go straight to a private bucket through presigned URLs (None: not configured).
+    app.state.storage = build_storage(settings)
     # Composition root: `access` consumes organization facts only through this interface.
     app.state.organization_facts = SqlOrganizationFacts()
     # Tasks drop assignees who become inactive or leave a task's scope (idempotent).
@@ -45,6 +50,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.notification_sources = {
         "task": visible_task_ids,
         "task_series": visible_series_ids,
+        "task_request": visible_request_ids,
+        "conversation": visible_conversation_ids,
         "announcement": visible_announcement_ids,
         "calendar_event": visible_event_ids,
     }

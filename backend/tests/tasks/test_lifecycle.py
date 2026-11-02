@@ -89,7 +89,7 @@ async def test_pmo_task_may_be_assigned_to_pmo_members(
 # --- Assignee, creator and manager actions --------------------------------------------------------
 
 
-async def test_assignees_progress_and_complete_but_cannot_cancel(
+async def test_assignees_start_work_but_only_leaders_close_or_cancel(
     world: World, login: Login, new_task: NewTask
 ) -> None:
     task = await new_task(await login("mgr_a"), "team_a1", ["m_a1"])
@@ -99,7 +99,8 @@ async def test_assignees_progress_and_complete_but_cannot_cancel(
     assert await _status(assignee, task, "cancelled") == 403
     assert await _status(assignee, task, "in_progress") == 200
     assert await _status(assignee, task, "in_progress") == 409
-    assert await _status(assignee, task, "completed") == 200
+    assert await _status(assignee, task, "completed") == 403  # they flag their part instead
+    assert await _status(team_leader, task, "completed") == 200
     assert await _status(assignee, task, "new") == 403  # reopening is for creator/managers
     assert await _status(team_leader, task, "new") == 200
     response = await assignee.get(f"{TASKS}/{task['id']}")
@@ -262,7 +263,7 @@ async def test_deactivated_member_is_removed_from_open_tasks_only(
     leader = await login("leader")
     open_task = await new_task(leader, "team_a1", ["m_a1", "m_a1b"])
     done_task = await new_task(leader, "team_a1", ["m_a1"])
-    assert await _status(await login("m_a1"), done_task, "completed") == 200
+    assert await _status(leader, done_task, "completed") == 200
     admin = await login("sysadmin")
 
     assert (await admin.post(f"{MEMBERS}/{world.member_ids['m_a1']}/deactivate")).status_code == 200

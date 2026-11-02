@@ -1,9 +1,11 @@
 # KORA Frontend — Project State
 
-_Last updated: 2026-10-15. Describes what is **actually in the repo**. Plan and milestone detail: [`FRONTEND_ROADMAP.md`](./FRONTEND_ROADMAP.md). If this file disagrees with the code, trust the code and fix this file._
+_Last updated: 2026-10-28 (V2 redesign; see the "V2" section at the end — it supersedes older UI descriptions above where they differ)._
+
+_Original header: 2026-10-15. Describes what is **actually in the repo**. Plan and milestone detail: [`FRONTEND_ROADMAP.md`](./FRONTEND_ROADMAP.md). If this file disagrees with the code, trust the code and fix this file._
 
 ## Where to resume
-**All ten planned milestones (M1–M10) are complete.** Nothing is queued. Remaining work is the open items at the bottom (Recruitment URL, font licence, a deeper accessibility audit, optional polish) and any new product decisions.
+M1–M10 were completed on 2026-10-15. On 2026-10-27/28 the UI was rebuilt (**V2**, see the last section): the design is settled and **runs on mock data for the features that need new backend work** (`src/mock/*`). **Next step: build the backend per [`backend/docs/implementation/BACKEND_V2_PLAN.md`](../../../backend/docs/implementation/BACKEND_V2_PLAN.md) (milestones B1–B8), replacing each mock as its endpoint lands.** Nothing from V2 is committed to git yet.
 
 ## Milestone status
 | # | Milestone | Status |
@@ -206,3 +208,57 @@ Tests: 100 pass; all main routes re-checked at 375 px, no overflow.
 - Organization: «أرشفة» is now «حذف» (same endpoint) and archived units are hidden from the tree.
 
 - `/league` (`features/league`, nav «دوري كورة», visible to all): hero with the ball mark and ribbons, ranked rows with progress bars and count-up points; the PMO Leader (`league.manage`) edits the round title and points with steppers. `kora-ball.svg` was removed (traced inverted); `shared/brand/BallMark.tsx` holds the ball.
+
+
+---
+
+# V2 — frontend rebuild (2026-10-27 → 2026-10-28)
+
+Plans: `docs/implementation/REDESIGN_ROADMAP.md` (phases 0–5) and `V2_REQUIREMENTS_PLAN.md` (the 12 requirements, milestones M1–M8, all done on the frontend). Backend plan for everything below marked **MOCK**: `backend/docs/implementation/BACKEND_V2_PLAN.md`. `npm run check` green (108 tests). Nothing committed.
+
+## Design
+- **Dark only.** `shared/lib/theme.ts` just applies `data-theme="dark"` (also set in `index.html`); the theme toggle and light theme use were removed (light tokens remain in `global.css` unused).
+- Identity: brand strip (navy/fuchsia/coral/green) under the header, official panel geometry (`shared/brand/PanelArt.tsx`, from pattern-9) in the Home hero and cropped at the sidebar bottom, thin network lines as page background (`shared/brand/network.svg`), coral as the primary action colour, oversized Ghroob ExtraBold headings, `01`/`02` section numerals (`.eyebrow-num`). Native `select/option`/checkbox/placeholder styled for dark.
+- **Fixed page on desktop (≥900/1100 px):** the shell is `100dvh` with no page scroll; the sidebar and the page area scroll independently and lists scroll inside their cards (Home, Team, Chat, Structure, Requests). Phones scroll normally.
+- Task text follows the site direction (no `dir="auto"` on task titles).
+
+## Navigation & pages (replaces the earlier top-bar/rail descriptions)
+- Persistent right sidebar (labels always visible): Home, **Chat**, "My teams" (each team/administration with a colour swatch → `/teams/:unitId`), tools (**Structure**, **Requests**, Tasks, Follow, Calendar, Announcements, League), admin section. Count badges next to Chat, Requests and Announcements; the header bell shows the unread notification count. Phones: bottom nav (Home, Chat, Teams, Calendar, More).
+- **Home** (`app/HomePage.tsx`): hero (date, greeting, name, role line "role · team"), quick add, "My tasks" card (Upcoming/Overdue/Completed tabs, collapsible sections), month/week mini calendar with a dot per day and the day's tasks beneath, orange private note, latest announcements. No teams card or events card (events live in the calendar).
+- **Team page** (`teams/TeamPage.tsx`): three stat tiles, quick add, grouped tasks, mini calendar, members with open-task counts.
+- **Structure** (`/structure`, everyone): top-down org chart (KORA → administrations → teams), each unit a coloured card with its responsible person highlighted and members listed; the user's own units are highlighted; clicking a person opens a popup with role/unit and a "Message" button (→ DM).
+- **Chat** (`/chat`, `/chat/:channelId`): sections Private / Team / Administration / Whole organization; unread badges; composer.
+- **Requests** (`/requests`, `task.manage` for now): incoming/sent between administrations; accept (choose people from your administration) or reject with a reason.
+- **Tasks** (`/tasks`) is now for **Administration managers only** (`isAdministrationManager`; nav `administrationManagerOnly` + `RequireAdministrationManager`). This is a UI rule only — `GET /tasks` still returns whatever the caller may see.
+- Quick add: label "إضافة مهمة جديدة…", visible captions on Assign to / Due date. **Attachments only inside "More options"** (and the create modal on `/tasks`).
+
+## Task rules (backend implements them since B1, 2026-10-28; files below are still MOCK)
+- A plain assignee (not creator, no `task.manage`) can start work but **cannot complete or close**: `rules.allowedTransitions` no longer offers `completed` to them (tests updated). Ticking the circle asks "Did you finish?" (`tasks/CompleteDialog.tsx`, optional delivery file) and **flags their part**; creator/managers get a "Close this task?" confirmation instead.
+- **Per-assignee progress:** detail page shows who finished their part ("2 of 3"), and "everyone is done, you can close" for leaders.
+- **Auto review task for the leader:** when a member flags their part the server creates a `kind: review` task for the creator and the scope's Team Leader/Administration Manager; the row shows "Review <member>'s work on <task>" (composed in the UI), links to the real task, and ticking it completes the review. Leaders can **send work back** (button next to a finished assignee, optional note).
+- **Files:** task detail has "Task files" (brief; creator/managers) and "Deliveries" (assignees); limits 10 MB/file, 10 files/section, program/script extensions blocked; paperclip count on task rows.
+- Private note: coral sticky note, Enter starts a new bullet (`•`), per account.
+
+## MOCK modules (all to be replaced by real endpoints; keys in `localStorage`/IndexedDB prefixed `kora.mock.`)
+| Mock | File | Replaced by (backend plan) |
+|---|---|---|
+| Chat store (`kora.mock.chat`) | `src/mock/chatStore.ts`, `features/chat/*` | B6 messaging |
+| Org tree (static names) | `src/mock/orgChart.ts`, `features/chat/people.ts` | B2 `/organization/structure` |
+| ~~Part-finished flags + review items~~ | **done (B1, 2026-10-28): real API** — `PUT /tasks/:id/progress`, `POST …/progress/:member/return`, `Task.kind/review_*/finished_member_ids`; `mock/taskParts.ts` and `reviewTasks.ts` deleted | — |
+| Task files (bytes in IndexedDB) | `src/mock/fileStore.ts`, `AttachmentsCard`, `FilePicker` | B3 object storage + `task_files` |
+| Private note | `features/notes/PrivateNote.tsx` | B4 `private_notes` |
+| Task requests | `src/mock/requestStore.ts`, `features/requests/*` | B5 `task_requests` |
+| Sidebar badges (chat/requests/announcements) | `app/AppShell.tsx`, `features/requests/useIncoming.ts` | B7 `/me/summary` |
+
+Mock-only behaviours to remember: sample messages/requests are seeded on first visit; the user is injected into the mock org chart by matching unit **names**; file/chat/note data does not leave the browser.
+
+## 2026-10-29: real backend wiring (B8), mock kept
+- The app talks to the real API by default. `VITE_MOCK=true` (`npm run dev:mock`, `.env.mock`) switches the affected features back to the browser-only mock (`src/mock/*` was **not** deleted, by request). `src/shared/config.ts#isMock()` is the single switch; vitest runs the existing suite in mock mode (`test.env`) and `src/features/realWiring.test.tsx` covers the real paths with `vi.stubEnv`.
+- Wired: structure (`useOrgTree`, `GET /organization/structure`), private note (versioned, one-time move of the browser copy), requests (`useRequestsData`: send/answer/withdraw, accepted request links to the task, sender may comment), badges (`useBadges`, `GET /me/summary`), chat (`useChatData`: 5 s polling with `after`, open DM from the chart via `/chat/dm:<member>`, delete own message or as moderator), files (`filesApi.ts`: presigned upload, 503 shows a clear message), notification categories `task_request` and `chat_message`, admin permission labels.
+- Known gaps: the task list has no per-task file count in real mode (the paperclip count is mock-only); file upload needs `KORA_STORAGE_*` and bucket CORS; the Requests nav item uses `task_request.create` in real mode.
+- Try it with a full environment: `backend/docs/implementation/DEMO_ENVIRONMENT.md`.
+
+## Verification notes (V2)
+Checked in the browser against the local backend (throwaway Postgres on :5440): Home, Team, Chat, Structure (popup), Requests, quick add, one-click flows, note bullets, requests badge, review task, file upload/delete. **Not exercised with a real second account:** the member (non-leader) flow, file download, request accept/reject, mobile layouts of the new pages.
+Known issues: Home's right column scrolls slightly at ~800 px height; pages not yet restyled/reviewed for the new identity: League, Auth pages, modals, Announcements/Calendar detail, Admin pages.
+Known backend gaps: no global activity feed. (Fixed 2026-10-28: fresh-DB migration failure via `transaction_per_migration`; the server no longer lets an assignee complete a task.)

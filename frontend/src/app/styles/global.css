@@ -15,25 +15,28 @@
   /* Shades/tints derived from them */
   --kora-navy-deep: #1a2350;
   --kora-navy-ink: #111936;
+  --kora-night: #1a2350; /* fixed dark navy for surfaces that must stay dark in both themes */
   --coral-deep: #c23f33; /* readable on white (AA) */
   --green-deep: #2f7a2b;
   --fuchsia-deep: #7a3480;
 
   --ui-text: #151c3a;
   --ui-muted: #5d6586;
-  --ui-border: color-mix(in srgb, var(--kora-navy) 14%, white);
+  --ui-border: color-mix(in srgb, var(--kora-navy) 14%, var(--ui-mix));
   --ui-surface: #ffffff;
-  --ui-surface-soft: color-mix(in srgb, var(--kora-navy) 5%, white);
-  --ui-navy-tint: color-mix(in srgb, var(--kora-navy) 9%, white);
-  --page-bg: color-mix(in srgb, var(--kora-navy) 4%, white);
+  --ui-surface-soft: color-mix(in srgb, var(--kora-navy) 5%, var(--ui-mix));
+  --ui-navy-tint: color-mix(in srgb, var(--kora-navy) 9%, var(--ui-mix));
+  --page-bg: color-mix(in srgb, var(--kora-navy) 4%, var(--ui-mix));
+  --ui-mix: #ffffff; /* the "paper" colour that tints are mixed into */
+  --ui-link: var(--kora-navy);
 
   /* Meaning: coral = needs attention, green = done, fuchsia = in motion, navy = info. Always paired with text/icons. */
   --state-danger: var(--coral-deep);
-  --state-danger-bg: color-mix(in srgb, var(--kora-coral) 14%, white);
+  --state-danger-bg: color-mix(in srgb, var(--kora-coral) 14%, var(--ui-mix));
   --state-warning: var(--fuchsia-deep);
-  --state-warning-bg: color-mix(in srgb, var(--kora-fuchsia) 12%, white);
+  --state-warning-bg: color-mix(in srgb, var(--kora-fuchsia) 12%, var(--ui-mix));
   --state-success: var(--green-deep);
-  --state-success-bg: color-mix(in srgb, var(--kora-green) 15%, white);
+  --state-success-bg: color-mix(in srgb, var(--kora-green) 15%, var(--ui-mix));
   --state-info: var(--kora-navy);
   --state-info-bg: var(--ui-navy-tint);
 
@@ -79,6 +82,31 @@
   --min-target: 44px;
 }
 
+
+/* ---------- Dark theme: same brand hues, readable on a night-blue ground. Chosen with <html data-theme="dark">. ---------- */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --kora-navy: #5d74cc;
+  --kora-navy-deep: #e8ecff;
+  --kora-navy-ink: #05081a;
+  --kora-fuchsia: #d58adc;
+  --coral-deep: #ff8f82;
+  --green-deep: #7fd67a;
+  --fuchsia-deep: #dd95e3;
+  --ui-text: #e7eaf8;
+  --ui-muted: #a0a8cb;
+  --ui-border: #283262;
+  --ui-surface: #121837;
+  --ui-surface-soft: #19204a;
+  --ui-navy-tint: #222b5a;
+  --ui-mix: #121837;
+  --ui-link: #a9b9ff;
+  --page-bg: #080c20;
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.35), 0 10px 28px -14px rgb(0 0 0 / 0.6);
+  --shadow-lift: 0 2px 4px rgb(0 0 0 / 0.4), 0 18px 36px -14px rgb(0 0 0 / 0.7);
+  --focus-ring: 0 0 0 3px var(--page-bg), 0 0 0 5px var(--kora-fuchsia);
+}
+
 *,
 *::before,
 *::after { box-sizing: border-box; }
@@ -88,7 +116,10 @@ html { -webkit-text-size-adjust: 100%; }
 body {
   margin: 0;
   min-block-size: 100dvh;
-  background-image: radial-gradient(900px 500px at 100% -10%, color-mix(in srgb, var(--kora-fuchsia) 9%, transparent), transparent 70%), radial-gradient(800px 480px at 0% 110%, color-mix(in srgb, var(--kora-coral) 8%, transparent), transparent 70%);
+  background-image: url('@/shared/brand/network.svg'), radial-gradient(900px 520px at 100% -10%, color-mix(in srgb, var(--kora-fuchsia) 16%, transparent), transparent 70%), radial-gradient(800px 480px at 0% 110%, color-mix(in srgb, var(--kora-coral) 12%, transparent), transparent 70%);
+  background-repeat: no-repeat;
+  background-position: left bottom, 0 0, 0 0;
+  background-size: min(1600px, 130vw) auto, auto, auto;
   background-attachment: fixed;
   font-family: var(--font);
   font-size: var(--text-md);
@@ -100,17 +131,22 @@ body {
 }
 
 h1, h2, h3, h4, p { margin: 0; }
-h1, h2, h3, h4 { font-weight: 700; line-height: 1.25; color: var(--kora-navy-deep); }
+h1, h2, h3, h4 { font-weight: 700; line-height: 1.25; color: var(--ui-text); }
 
-a { color: var(--kora-navy); text-underline-offset: 3px; }
-a:hover { color: var(--kora-fuchsia); }
+a { color: var(--ui-link); text-underline-offset: 3px; }
+a:hover { color: var(--kora-coral); }
+/* Small numeral that opens a section, the identity's editorial device. */
+.eyebrow-num { color: var(--kora-coral); font-weight: 800; font-size: var(--text-xs); letter-spacing: 0.08em; margin-inline-end: var(--space-2); }
 
 button, input, select, textarea { font: inherit; color: inherit; }
+select, option, optgroup { background-color: var(--ui-surface); color: var(--ui-text); }
+input[type='checkbox'], input[type='radio'] { accent-color: var(--kora-coral); }
+::placeholder { color: var(--ui-muted); opacity: 1; }
 img, svg { max-width: 100%; }
 
 :focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: 6px; }
 
-::selection { background: color-mix(in srgb, var(--kora-fuchsia) 28%, white); }
+::selection { background: color-mix(in srgb, var(--kora-fuchsia) 28%, var(--ui-mix)); }
 
 @keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 @keyframes pop { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: none; } }

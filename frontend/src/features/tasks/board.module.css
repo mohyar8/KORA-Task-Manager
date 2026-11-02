@@ -1,18 +1,18 @@
 .hint { color: var(--ui-muted); font-size: var(--text-sm); margin-block-end: var(--space-3); }
 .board { display: grid; gap: var(--space-4); grid-template-columns: repeat(4, minmax(250px, 1fr)); overflow-x: auto; padding-block-end: var(--space-3); align-items: start; scroll-snap-type: x proximity; }
-.column { --accent: var(--kora-navy); min-block-size: 220px; padding: var(--space-3); border-radius: var(--radius-card); background: color-mix(in srgb, var(--accent) 7%, white); box-shadow: inset 0 3px 0 var(--accent); transition: background 0.2s, box-shadow 0.2s, opacity 0.2s, transform 0.2s var(--ease); scroll-snap-align: start; }
+.column { --accent: var(--kora-navy); min-block-size: 220px; padding: var(--space-3); border-radius: var(--radius-card); background: color-mix(in srgb, var(--accent) 7%, var(--ui-mix)); box-shadow: inset 0 3px 0 var(--accent); transition: background 0.2s, box-shadow 0.2s, opacity 0.2s, transform 0.2s var(--ease); scroll-snap-align: start; }
 .colNew { --accent: var(--kora-navy); }
 .colProgress { --accent: var(--kora-fuchsia); }
 .colDone { --accent: var(--kora-green); }
 .colCancelled { --accent: #8b90a8; }
-.over { background: color-mix(in srgb, var(--accent) 18%, white); box-shadow: inset 0 3px 0 var(--accent), 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent); transform: scale(1.01); }
+.over { background: color-mix(in srgb, var(--accent) 18%, var(--ui-mix)); box-shadow: inset 0 3px 0 var(--accent), 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent); transform: scale(1.01); }
 .dim { opacity: 0.45; }
 .colHead { display: flex; align-items: center; justify-content: space-between; font-size: var(--text-md); padding: var(--space-2) var(--space-2) var(--space-3); color: var(--accent); }
 .colCancelled .colHead { color: var(--ui-muted); }
 .count { display: grid; place-items: center; min-inline-size: 28px; block-size: 28px; padding-inline: 8px; border-radius: 14px; background: var(--accent); color: #fff; font-size: var(--text-xs); }
 .cards { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-3); }
 .empty { text-align: center; padding: var(--space-5) 0; color: var(--ui-muted); font-size: var(--text-sm); }
-.card { display: grid; gap: var(--space-2); padding: var(--space-3) var(--space-4); border-radius: 16px; background: #fff; box-shadow: var(--shadow-card); cursor: grab; animation: rise 0.35s var(--ease) both; transition: transform 0.2s var(--ease), box-shadow 0.2s, opacity 0.2s; }
+.card { display: grid; gap: var(--space-2); padding: var(--space-3) var(--space-4); border-radius: 16px; background: var(--ui-surface); box-shadow: var(--shadow-card); cursor: grab; animation: rise 0.35s var(--ease) both; transition: transform 0.2s var(--ease), box-shadow 0.2s, opacity 0.2s; }
 .card:hover { transform: translateY(-2px); box-shadow: var(--shadow-lift); }
 .card:active { cursor: grabbing; }
 .lifted { opacity: 0.4; transform: rotate(-2deg) scale(0.97); }
@@ -23,8 +23,8 @@
 .cardMeta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); font-size: var(--text-xs); color: var(--ui-muted); }
 .due { display: inline-flex; align-items: center; gap: 4px; }
 .people { list-style: none; margin: 0; padding: 0; display: flex; }
-.person { display: grid; place-items: center; inline-size: 28px; block-size: 28px; margin-inline-end: -6px; border-radius: 50%; background: var(--grad-brand); color: #fff; font-size: 12px; font-weight: 800; box-shadow: 0 0 0 2px #fff; }
-.moveSelect { justify-self: start; min-block-size: 32px; border: 0; border-radius: 999px; padding: 0 var(--space-3); font-size: var(--text-xs); background: var(--ui-navy-tint); color: var(--kora-navy); cursor: pointer; }
+.person { display: grid; place-items: center; inline-size: 28px; block-size: 28px; margin-inline-end: -6px; border-radius: 50%; background: var(--grad-brand); color: #fff; font-size: 12px; font-weight: 800; box-shadow: 0 0 0 2px var(--ui-surface); }
+.moveSelect { justify-self: start; min-block-size: 32px; border: 0; border-radius: 999px; padding: 0 var(--space-3); font-size: var(--text-xs); background: var(--ui-navy-tint); color: var(--ui-link); cursor: pointer; }
 .confirm { display: grid; gap: var(--space-3); }
 @media (max-width: 1100px) { .board { grid-template-columns: repeat(4, minmax(260px, 78vw)); } }
 @media (prefers-reduced-motion: reduce) { .card, .column { transition: none; } }

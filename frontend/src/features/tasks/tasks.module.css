@@ -8,13 +8,13 @@
 .pickList { list-style: none; margin: 0; padding: 0; max-block-size: 220px; overflow-y: auto; display: grid; gap: 2px; }
 .pick { display: flex; align-items: center; gap: var(--space-3); min-block-size: var(--min-target); padding-inline: var(--space-2); border-radius: var(--radius-control); cursor: pointer; }
 .pick:hover { background: var(--ui-surface-soft); }
-.pick input { inline-size: 20px; block-size: 20px; accent-color: var(--kora-navy); }
+.pick input { inline-size: 20px; block-size: 20px; accent-color: var(--kora-coral); }
 
 .filters { display: grid; gap: var(--space-3); grid-template-columns: 1fr; margin-block-end: var(--space-4); }
 @media (min-width: 720px) { .filters { grid-template-columns: 2fr 1fr 1fr; align-items: end; } }
 .check { display: flex; align-items: center; gap: var(--space-3); min-block-size: var(--min-target); margin-block-end: var(--space-4); }
 .check input { inline-size: 20px; block-size: 20px; accent-color: var(--kora-navy); }
-.titleLink { font-weight: 700; color: var(--kora-navy); overflow-wrap: anywhere; }
+.titleLink { font-weight: 700; color: var(--ui-link); overflow-wrap: anywhere; }
 .meta { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; }
 .overdue { color: var(--state-danger); font-weight: 500; }
 .note { color: var(--ui-muted); font-size: var(--text-sm); margin-block-end: var(--space-4); }
@@ -54,11 +54,11 @@
 
 .viewSwitch { display: inline-flex; gap: 4px; padding: 5px; margin-block-end: var(--space-4); border-radius: 999px; background: var(--ui-navy-tint); }
 .viewSwitch button { display: inline-flex; align-items: center; gap: var(--space-2); min-block-size: 38px; padding: 0 var(--space-4); border: 0; border-radius: 999px; background: transparent; color: var(--ui-muted); font-weight: 700; font-size: var(--text-sm); cursor: pointer; transition: background 0.2s var(--ease), color 0.2s, box-shadow 0.2s; }
-.viewSwitch button:hover { color: var(--kora-navy); }
-.viewSwitch .viewOn { background: #fff; color: var(--kora-navy); box-shadow: 0 4px 12px -4px rgb(26 35 80 / 0.35); }
+.viewSwitch button:hover { color: var(--ui-link); }
+.viewSwitch .viewOn { background: var(--ui-surface); color: var(--ui-link); box-shadow: 0 4px 12px -4px rgb(26 35 80 / 0.35); }
 .filters { padding: var(--space-4); border-radius: var(--radius-card); background: var(--ui-surface); box-shadow: var(--shadow-card); }
 
-.pickAll { align-self: flex-start; background: none; border: 0; padding: var(--space-1) 0; color: var(--kora-fuchsia, #944399); font: inherit; font-weight: 600; cursor: pointer; text-decoration: underline; }
+.pickAll { align-self: flex-start; background: none; border: 0; padding: var(--space-1) 0; color: var(--ui-link); font: inherit; font-weight: 600; cursor: pointer; text-decoration: underline; }
 
 .pickTop { font-weight: 600; }
 .topBadge { margin-inline-start: auto; padding: 2px var(--space-2); border-radius: 999px; background: var(--kora-fuchsia, #944399); color: #fff; font-size: var(--text-xs, 0.75rem); font-weight: 600; white-space: nowrap; }

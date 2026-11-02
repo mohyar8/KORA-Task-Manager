@@ -22,7 +22,16 @@ export interface Task {
   started_at: string | null
   /** Created by someone other than the scope's Team Leader or Administration Manager. */
   from_outside: boolean
+  /** `review`: made automatically for the leaders when an assignee finishes their part. */
+  kind: 'regular' | 'review'
+  review_of_task_id: string | null
+  review_member_id: string | null
+  /** Set when the task came from another Administration's request: that person may read and comment only. */
+  requested_by_member_id?: string | null
+  requested_from_unit_id?: string | null
   assignee_member_ids: string[]
+  /** Assignees who finished their part: everyone for the creator and managers, otherwise only the caller. */
+  finished_member_ids: string[]
   /** The assignees given through "Other" (outside the scope), with their names. */
   external_assignees: { id: string; full_name: string }[]
 }
