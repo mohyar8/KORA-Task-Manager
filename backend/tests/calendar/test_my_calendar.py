@@ -67,7 +67,7 @@ async def test_my_calendar_merges_events_and_derived_task_due_dates(
     await _task(leader, world, "No due date", ["m_a1"], None)
     await _task(leader, world, "Too late", ["m_a1"], START + timedelta(days=20))
     done = await _task(leader, world, "Completed", ["m_a1"], due)
-    await member.post(f"{TASKS}/{done}/status", {"status": "completed"})
+    await leader.post(f"{TASKS}/{done}/status", {"status": "completed"})
     cancelled = await _task(leader, world, "Cancelled", ["m_a1"], due)
     await leader.post(f"{TASKS}/{cancelled}/status", {"status": "cancelled"})
     started = await _task(leader, world, "Started", ["m_a1"], due)

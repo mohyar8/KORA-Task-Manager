@@ -12,7 +12,7 @@ from kora_api.access.models import AccountStatus, UserAccount
 from kora_api.access.org_facts import UnitInfo
 from kora_api.access.permissions import Permission
 from kora_api.core import clock
-from kora_api.organization.constants import MemberStatus
+from kora_api.organization.constants import KORA_UNIT_ID, MemberStatus
 from kora_api.organization.facts import SqlOrganizationFacts
 from kora_api.organization.models import Member, MemberTeamPlacement, RoleAssignment
 
@@ -89,6 +89,15 @@ async def member_positions(
         member.id: _position(member, status, team, unit, role)
         for member, status, team, unit, role in rows
     }
+
+
+async def active_positions(db: AsyncSession) -> list[MemberPosition]:
+    """Every active Member's position (used to find the leaders of a scope)."""
+    rows = await db.execute(_positions_query())
+    positions = [
+        _position(member, status, team, unit, role) for member, status, team, unit, role in rows
+    ]
+    return [p for p in positions if p.active]
 
 
 async def current_units(db: AsyncSession) -> Mapping[uuid.UUID, UnitInfo]:
@@ -205,3 +214,61 @@ async def member_directory(
                 )
             )
     return entries
+
+
+LEADER_ROLES = frozenset(
+    {"event_project_leader", "pmo_leader", "administration_manager", "team_leader"}
+)
+
+
+@dataclass(frozen=True)
+class StructureMember:
+    member_id: uuid.UUID
+    full_name: str
+    role_key: str
+
+
+@dataclass(frozen=True)
+class StructureNode:
+    unit_id: uuid.UUID
+    name: str
+    kind: str
+    leader_ids: list[uuid.UUID]
+    members: list[StructureMember]
+    children: list["StructureNode"]
+
+
+async def organization_structure(db: AsyncSession) -> StructureNode:
+    """The whole active structure, KORA down to Teams, with each unit's active Members.
+
+    Names and roles only (no contact data). A Member sits in their role's unit: Team roles at the
+    Team, the Administration Manager at the Administration, PMO roles at the PMO, the top roles at
+    KORA. Archived units and inactive Members are left out."""
+    units = await current_units(db)
+    by_unit: dict[uuid.UUID, list[StructureMember]] = {}
+    rows = await db.execute(_positions_query().order_by(Member.full_name))
+    for member, account_status, team_id, role_unit_id, role_key in rows:
+        position = _position(member, account_status, team_id, role_unit_id, role_key)
+        if position.active and position.role_unit_id and position.role_key:
+            by_unit.setdefault(position.role_unit_id, []).append(
+                StructureMember(member.id, member.full_name, position.role_key)
+            )
+    children: dict[uuid.UUID, list[uuid.UUID]] = {}
+    for info in units.values():
+        if info.active and info.parent_id is not None:
+            children.setdefault(info.parent_id, []).append(info.id)
+
+    def build(unit_id: uuid.UUID) -> StructureNode:
+        info = units[unit_id]
+        members = by_unit.get(unit_id, [])
+        kids = sorted(children.get(unit_id, []), key=lambda u: units[u].name)
+        return StructureNode(
+            unit_id=unit_id,
+            name=info.name,
+            kind=info.kind,
+            leader_ids=[m.member_id for m in members if m.role_key in LEADER_ROLES],
+            members=members,
+            children=[build(k) for k in kids],
+        )
+
+    return build(KORA_UNIT_ID)

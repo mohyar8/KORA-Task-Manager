@@ -16,6 +16,9 @@ class Permission(enum.StrEnum):
     CALENDAR_VIEW_ADMINISTRATION = "calendar.view_administration"
     CALENDAR_VIEW_ALL = "calendar.view_all"
     LEAGUE_MANAGE = "league.manage"
+    TASK_REQUEST_CREATE = "task_request.create"
+    TASK_REQUEST_RESPOND = "task_request.respond"
+    CHAT_MODERATE = "chat.moderate"
 
 
 PERMISSION_DESCRIPTIONS: dict[Permission, str] = {
@@ -33,6 +36,9 @@ PERMISSION_DESCRIPTIONS: dict[Permission, str] = {
     ),
     Permission.CALENDAR_VIEW_ALL: "See the task calendar of every Administration.",
     Permission.LEAGUE_MANAGE: "Set the points and round title of the KORA league.",
+    Permission.TASK_REQUEST_CREATE: "Ask another Administration for a task (from the unit).",
+    Permission.TASK_REQUEST_RESPOND: "Accept or reject task requests sent to the Administration.",
+    Permission.CHAT_MODERATE: "Delete other people's messages in the chat channels of the unit.",
 }
 
 

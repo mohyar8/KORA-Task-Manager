@@ -26,6 +26,22 @@ class Settings(BaseSettings):
     database_url: SecretStr = SecretStr(LOCAL_DATABASE_URL)
     database_echo: bool = False
 
+    # S3-compatible private bucket for task files (unset: file endpoints answer 503).
+    storage_endpoint: str | None = None
+    storage_bucket: str | None = None
+    storage_region: str = "auto"
+    storage_access_key_id: SecretStr | None = None
+    storage_secret_access_key: SecretStr | None = None
+
+    @property
+    def storage_configured(self) -> bool:
+        return bool(
+            self.storage_endpoint
+            and self.storage_bucket
+            and self.storage_access_key_id
+            and self.storage_secret_access_key
+        )
+
     @model_validator(mode="after")
     def _deployed_environments_are_safe(self) -> Self:
         """Staging and production refuse to start with the committed local credentials or debug

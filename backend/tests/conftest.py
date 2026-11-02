@@ -27,6 +27,9 @@ TEST_DATABASE_URL = os.environ.get(
     "KORA_TEST_DATABASE_URL", "postgresql+asyncpg://kora:kora@localhost:5432/kora_test"
 )
 
+# Tests never read a developer's local `.env` (it may point at a real database).
+Settings.model_config["env_file"] = None
+
 ClientFactory = Callable[[], AsyncClient]
 # A non-local URL so staging/production settings validate; nothing ever connects to it.
 DEPLOYED_DATABASE_URL = SecretStr("postgresql+asyncpg://kora_app:not-a-real-secret@db.invalid/kora")

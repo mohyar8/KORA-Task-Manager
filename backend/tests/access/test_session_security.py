@@ -181,7 +181,8 @@ async def test_lockout_response_is_identical_for_existing_and_unknown_usernames(
     existing, unknown = locked
     assert existing.status_code == unknown.status_code == 429
     assert existing.json() == unknown.json()
-    assert existing.headers["Retry-After"] == unknown.headers["Retry-After"]
+    # The countdown may tick over a second between the two requests on a slow machine.
+    assert abs(int(existing.headers["Retry-After"]) - int(unknown.headers["Retry-After"])) <= 1
 
 
 @pytest.mark.parametrize(

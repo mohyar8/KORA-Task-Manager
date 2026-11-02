@@ -13,8 +13,12 @@ from kora_api.calendar import models as calendar_models
 from kora_api.core.config import get_settings
 from kora_api.core.database import Base
 from kora_api.league import models as league_models
+from kora_api.messaging import models as messaging_models
+from kora_api.notes import models as notes_models
 from kora_api.notifications import models as notifications_models
 from kora_api.organization import models as organization_models
+from kora_api.task_files import models as task_files_models
+from kora_api.task_requests import models as task_requests_models
 from kora_api.tasks import models as tasks_models
 
 # Every domain model module must be imported here so its tables are on Base.metadata.
@@ -22,8 +26,12 @@ MODEL_MODULES = (
     access_models,
     organization_models,
     tasks_models,
+    task_requests_models,
+    task_files_models,
     announcements_models,
     notifications_models,
+    notes_models,
+    messaging_models,
     calendar_models,
     league_models,
     audit_models,
@@ -55,7 +63,11 @@ def run_migrations_offline() -> None:
 
 
 def do_run_migrations(connection: Connection) -> None:
-    context.configure(connection=connection, target_metadata=target_metadata)
+    # One transaction per migration: otherwise `now()` is identical across migrations on a fresh
+    # database and a migration that closes a row seeded earlier violates `valid_to > valid_from`.
+    context.configure(
+        connection=connection, target_metadata=target_metadata, transaction_per_migration=True
+    )
 
     with context.begin_transaction():
         context.run_migrations()

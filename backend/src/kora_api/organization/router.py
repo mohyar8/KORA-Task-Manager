@@ -9,7 +9,7 @@ from kora_api.access.dependencies import CurrentAccess, SystemAdmin
 from kora_api.core.database import DbSession
 from kora_api.core.errors import AUTHENTICATED, errors
 from kora_api.organization import members, queries, units
-from kora_api.organization.constants import RoleKey
+from kora_api.organization.constants import RoleKey, UnitKind
 from kora_api.organization.schemas import (
     ChangeTeamRequest,
     CreateMemberRequest,
@@ -21,6 +21,8 @@ from kora_api.organization.schemas import (
     MoveTeamRequest,
     ReactivateMemberRequest,
     RoleFields,
+    StructureMemberResponse,
+    StructureNodeResponse,
     TemporaryPasswordResponse,
     UnitResponse,
 )
@@ -30,6 +32,9 @@ units_router = APIRouter(
 )
 directory_router = APIRouter(
     prefix="/organization/members", tags=["organization"], responses=AUTHENTICATED
+)
+structure_router = APIRouter(
+    prefix="/organization/structure", tags=["organization"], responses=AUTHENTICATED
 )
 members_router = APIRouter(prefix="/admin/members", tags=["admin"], responses=AUTHENTICATED)
 
@@ -56,6 +61,34 @@ async def list_directory(
         )
         for e in entries
     ]
+
+
+@structure_router.get("", responses=errors(403))
+async def get_structure(access: CurrentAccess, db: DbSession) -> StructureNodeResponse:
+    """The whole organization, KORA down to Teams, with each unit's active Members (names and
+    roles only). Open to every active Member: seeing who is who is intended, not a leak."""
+    position = await queries.member_for_account(db, access.account.id)
+    if position is None or not position.active:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN, "Only active Members can view the structure."
+        )
+    return _node(await queries.organization_structure(db))
+
+
+def _node(node: queries.StructureNode) -> StructureNodeResponse:
+    return StructureNodeResponse(
+        unit_id=node.unit_id,
+        name=node.name,
+        kind=UnitKind(node.kind),
+        leader_ids=node.leader_ids,
+        members=[
+            StructureMemberResponse(
+                member_id=m.member_id, full_name=m.full_name, role_key=RoleKey(m.role_key)
+            )
+            for m in node.members
+        ],
+        children=[_node(c) for c in node.children],
+    )
 
 
 # --- Units: scoped by organization.manage --------------------------------------------------------

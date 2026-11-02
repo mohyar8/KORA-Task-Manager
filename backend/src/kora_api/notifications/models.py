@@ -15,6 +15,9 @@ class NotificationCategory(enum.StrEnum):
     ANNOUNCEMENT_NEW = "announcement_new"
     ANNOUNCEMENT_CHANGE = "announcement_change"
     CALENDAR_EVENT = "calendar_event"
+    TASK_REVIEW = "task_review"
+    TASK_REQUEST = "task_request"
+    CHAT_MESSAGE = "chat_message"
 
 
 def _enum_values(enum_cls: type[enum.StrEnum]) -> list[str]:

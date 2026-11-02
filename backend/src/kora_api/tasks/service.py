@@ -19,7 +19,7 @@ from dataclasses import field as dataclass_field
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import ColumnElement, or_, select
+from sqlalchemy import ColumnElement, delete, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from kora_api.access.dependencies import AccessContext
@@ -36,6 +36,7 @@ from kora_api.tasks.constants import (
     OPEN_STATUSES,
     AssignmentEndReason,
     EventKind,
+    TaskKind,
     TaskPriority,
     TaskStatus,
 )
@@ -44,6 +45,7 @@ from kora_api.tasks.models import (
     TaskAssignment,
     TaskComment,
     TaskEvent,
+    TaskPartProgress,
     TaskScopeChange,
     TaskSeries,
 )
@@ -87,6 +89,8 @@ class TaskView:
     assignee_member_ids: frozenset[uuid.UUID]
     # Assignees given through 'Other' (outside the scope), id -> full name.
     external: Mapping[uuid.UUID, str] = dataclass_field(default_factory=lambda: {})
+    # Assignees who finished their part, as far as the caller may know (see `visible_finished`).
+    finished: frozenset[uuid.UUID] = frozenset()
 
 
 @dataclass(frozen=True)
@@ -108,6 +112,11 @@ def is_manager(actor: TaskActor, task: Task) -> bool:
     return actor.snapshot.allows(MANAGE, task.scope_unit_id)
 
 
+def is_requester(actor: TaskActor, task: Task) -> bool:
+    """Asked for this task through a request: may read and comment, never administer."""
+    return actor.member_id is not None and actor.member_id == task.requested_by_member_id
+
+
 def is_assignee(actor: TaskActor, assignees: frozenset[uuid.UUID]) -> bool:
     return actor.member_id is not None and actor.member_id in assignees
 
@@ -118,6 +127,9 @@ def follows(actor: TaskActor) -> bool:
 
 
 def can_view(actor: TaskActor, task: Task, assignees: frozenset[uuid.UUID]) -> bool:
+    if task.kind == TaskKind.REVIEW:
+        # A review is for the leaders only; Members who merely see the team's tasks do not.
+        return is_manager(actor, task) or is_creator(actor, task) or is_assignee(actor, assignees)
     decision = actor.snapshot.decide(VIEW, task.scope_unit_id)
     if decision.allowed:
         return True
@@ -127,6 +139,7 @@ def can_view(actor: TaskActor, task: Task, assignees: frozenset[uuid.UUID]) -> b
         is_manager(actor, task)
         or is_creator(actor, task)
         or is_assignee(actor, assignees)
+        or is_requester(actor, task)
         or follows(actor)
     )
 
@@ -136,7 +149,12 @@ def can_administer(actor: TaskActor, task: Task) -> bool:
 
 
 def can_comment(actor: TaskActor, task: Task, assignees: frozenset[uuid.UUID]) -> bool:
-    return is_creator(actor, task) or is_assignee(actor, assignees) or is_manager(actor, task)
+    return (
+        is_creator(actor, task)
+        or is_assignee(actor, assignees)
+        or is_manager(actor, task)
+        or is_requester(actor, task)
+    )
 
 
 def _deny(permission: Permission, task: Task) -> AccessDeniedError:
@@ -201,7 +219,7 @@ async def load_visible(
     view = await _load(db, task_id, lock=lock)
     if not can_view(actor, view.task, view.assignee_member_ids):
         raise _deny(VIEW, view.task)
-    return view
+    return await with_finished(db, actor, view)
 
 
 async def get_task(db: AsyncSession, actor: TaskActor, task_id: uuid.UUID) -> TaskView:
@@ -233,6 +251,7 @@ async def list_tasks(
         conditions.append(Task.id.in_(participant_ids))
     if actor.member_id is not None:
         conditions.append(Task.created_by_member_id == actor.member_id)
+        conditions.append(Task.requested_by_member_id == actor.member_id)
     stmt = select(Task).where(or_(*conditions))
     stmt = stmt.where(Task.parent_id == parent_id if parent_id else Task.parent_id.is_(None))
     if status is not None:
@@ -242,8 +261,14 @@ async def list_tasks(
     tasks = list(await db.scalars(stmt.order_by(Task.due_at.nulls_last(), Task.created_at)))
     assignees = await assignees_of(db, (t.id for t in tasks))
     externals = await externals_of(db, (t.id for t in tasks))
+    finished = await finished_of(db, (t.id for t in tasks))
     return [
-        TaskView(t, assignees[t.id], externals[t.id])
+        TaskView(
+            t,
+            assignees[t.id],
+            externals[t.id],
+            visible_finished(actor, t, finished[t.id]),
+        )
         for t in tasks
         if can_view(actor, t, assignees[t.id])
     ]
@@ -264,7 +289,7 @@ async def follow_tasks(
     """Every top-level task of every team, for the PMO's follow-up page (read-only)."""
     if not follows(actor):
         raise AccessDeniedError(FOLLOW, None)
-    stmt = select(Task).where(Task.parent_id.is_(None))
+    stmt = select(Task).where(Task.parent_id.is_(None), Task.kind == TaskKind.REGULAR)
     if status is not None:
         stmt = stmt.where(Task.status == status)
     tasks = list(await db.scalars(stmt.order_by(Task.due_at.nulls_last(), Task.created_at)))
@@ -374,7 +399,7 @@ async def create_task(
         assignee_member_ids=assignee_member_ids,
         external_member_ids=external_member_ids,
     )
-    _audit_created(db, view, actor.account_id)
+    audit_created(db, view, actor.account_id)
     await db.commit()
     return view
 
@@ -389,6 +414,7 @@ async def create_subtask(
     external_member_ids: Sequence[uuid.UUID] = (),
 ) -> TaskView:
     parent = (await load_visible(db, actor, parent_id, lock=True)).task
+    _require_regular(parent)
     if parent.parent_id is not None:
         raise InvalidTaskError("Subtasks cannot have subtasks.")
     await require_creator(db, actor, parent.scope_unit_id)
@@ -406,12 +432,12 @@ async def create_subtask(
         parent_id=parent.id,
     )
     record(db, parent.id, EventKind.SUBTASK_CREATED, actor.account_id, subtask_id=view.task.id)
-    _audit_created(db, view, actor.account_id)
+    audit_created(db, view, actor.account_id)
     await db.commit()
     return view
 
 
-def _audit_created(db: AsyncSession, view: TaskView, actor_account_id: uuid.UUID) -> None:
+def audit_created(db: AsyncSession, view: TaskView, actor_account_id: uuid.UUID) -> None:
     task = view.task
     audit.record(
         db,
@@ -507,6 +533,8 @@ async def insert_task(
     event_data: Mapping[str, Any] | None = None,
     actor_account_id: uuid.UUID | None = None,
     notify_assignees: bool = True,
+    requested_by_member_id: uuid.UUID | None = None,
+    requested_from_unit_id: uuid.UUID | None = None,
 ) -> TaskView:
     """Insert a task with its scope history, assignees and creation event. Does not commit.
 
@@ -516,7 +544,9 @@ async def insert_task(
     assert creator.member_id is not None
     actor_id = actor_account_id or creator.account_id
     now = clock.utcnow()
-    from_outside = not org.owns_scope(creator.member, scope_unit_id, await org.current_units(db))
+    from_outside = requested_by_member_id is not None or not org.owns_scope(
+        creator.member, scope_unit_id, await org.current_units(db)
+    )
     task = Task(
         title=fields.title,
         description=fields.description,
@@ -530,6 +560,8 @@ async def insert_task(
         created_by_account_id=creator.account_id,
         created_by_member_id=creator.member_id,
         from_outside=from_outside,
+        requested_by_member_id=requested_by_member_id,
+        requested_from_unit_id=requested_from_unit_id,
         created_at=now,
         updated_at=now,
     )
@@ -578,6 +610,7 @@ async def update_task(
 ) -> TaskView:
     view = await load_visible(db, actor, task_id, lock=True)
     task = view.task
+    _require_regular(task)
     if not can_administer(actor, task):
         raise _deny(MANAGE, task)
     previous = {field: getattr(task, field) for field in EDITABLE}
@@ -638,14 +671,17 @@ _TRANSITIONS: dict[TaskStatus, frozenset[TaskStatus]] = {
 async def change_status(
     db: AsyncSession, actor: TaskActor, task_id: uuid.UUID, target: TaskStatus
 ) -> TaskView:
-    """Assignees: in_progress/completed. Creator: cancel/reopen. Managers: any valid move."""
+    """Assignees: start work (in_progress). Creator and managers: complete, cancel, reopen.
+
+    An assignee never closes a task: they flag their part (`set_part`) and a leader closes it.
+    """
     view = await load_visible(db, actor, task_id, lock=True)
     task = view.task
     if target not in _TRANSITIONS[task.status]:
         raise TaskConflictError(f"Cannot change status from {task.status} to {target}.")
-    if target in _ASSIGNEE_TARGETS:
+    if target == TaskStatus.IN_PROGRESS:
         allowed = is_assignee(actor, view.assignee_member_ids) or is_manager(actor, task)
-    else:  # cancel or reopen
+    else:  # complete, cancel or reopen
         allowed = can_administer(actor, task)
     if not allowed:
         raise _deny(MANAGE, task)
@@ -667,7 +703,7 @@ async def change_status(
         after={"status": target},
     )
     await db.commit()
-    return view
+    return await with_finished(db, actor, view)
 
 
 async def set_status(
@@ -696,6 +732,7 @@ async def set_status(
     )
     if notify:
         await _notify_watchers(db, task, Category.TASK_UPDATE, "status_changed", actor_account_id)
+    await _after_status(db, task, previous, target, actor_account_id)
 
 
 # --- Assignees ----------------------------------------------------------------------------------
@@ -709,6 +746,7 @@ async def add_assignee(
     external: bool = False,
 ) -> TaskView:
     view = await load_visible(db, actor, task_id, lock=True)
+    _require_regular(view.task)
     if not can_administer(actor, view.task):
         raise _deny(MANAGE, view.task)
     if member_id in view.assignee_member_ids:
@@ -739,6 +777,7 @@ async def remove_assignee(
     db: AsyncSession, actor: TaskActor, task_id: uuid.UUID, member_id: uuid.UUID
 ) -> TaskView:
     view = await load_visible(db, actor, task_id, lock=True)
+    _require_regular(view.task)
     if not can_administer(actor, view.task):
         raise _deny(MANAGE, view.task)
     if member_id not in view.assignee_member_ids:
@@ -810,6 +849,7 @@ async def end_assignment(
     )
     if notify:
         await _notify_member(db, task_id, member_id, "unassigned", actor_account_id)
+    await _drop_part(db, task_id, member_id, actor_account_id)
     return True
 
 
@@ -935,6 +975,7 @@ async def move_task(
     """Move a top-level task (and its subtasks) to another scope, keeping scope history."""
     view = await load_visible(db, actor, task_id, lock=True)
     task = view.task
+    _require_regular(task)
     if task.parent_id is not None:
         raise InvalidTaskError("Subtasks move with their parent task.")
     snapshot = actor.snapshot
@@ -954,11 +995,16 @@ async def move_task(
     subtasks = list(
         await db.scalars(select(Task).where(Task.parent_id == task.id).with_for_update())
     )
+    reviews = list(
+        await db.scalars(select(Task).where(Task.review_of_task_id == task.id).with_for_update())
+    )
     source_id = task.scope_unit_id
     removed: set[uuid.UUID] = set()
     for item in (task, *subtasks):
         await rescope(db, item, destination_id, actor.account_id)
         removed |= await remove_ineligible_assignees(db, item, actor.account_id, units)
+    for review in reviews:  # their reviewers are tied to the task, not to the scope
+        await rescope(db, review, destination_id, actor.account_id, notify=False)
     audit.record(
         db,
         audit_actions.TASK_MOVED,
@@ -1011,6 +1057,319 @@ async def rescope(
     task.updated_at = now
     if notify:
         await _notify_watchers(db, task, Category.TASK_UPDATE, "moved", actor_account_id)
+
+
+# --- Finished parts and review tasks -------------------------------------------------------------
+
+
+def _require_regular(task: Task) -> None:
+    if task.kind != TaskKind.REGULAR:
+        raise TaskConflictError("Review tasks are managed automatically.")
+
+
+async def finished_of(
+    db: AsyncSession, task_ids: Iterable[uuid.UUID]
+) -> dict[uuid.UUID, frozenset[uuid.UUID]]:
+    ids = set(task_ids)
+    result: dict[uuid.UUID, set[uuid.UUID]] = {task_id: set() for task_id in ids}
+    if ids:
+        rows = await db.execute(
+            select(TaskPartProgress.task_id, TaskPartProgress.member_id).where(
+                TaskPartProgress.task_id.in_(ids)
+            )
+        )
+        for task_id, member_id in rows:
+            result[task_id].add(member_id)
+    return {task_id: frozenset(members) for task_id, members in result.items()}
+
+
+def visible_finished(
+    actor: TaskActor, task: Task, finished: frozenset[uuid.UUID]
+) -> frozenset[uuid.UUID]:
+    """Leaders (creator or scoped manager) see everyone's progress; an assignee sees their own."""
+    if can_administer(actor, task):
+        return finished
+    if actor.member_id is not None and actor.member_id in finished:
+        return frozenset({actor.member_id})
+    return frozenset()
+
+
+async def with_finished(db: AsyncSession, actor: TaskActor, view: TaskView) -> TaskView:
+    finished = (await finished_of(db, [view.task.id]))[view.task.id]
+    return TaskView(
+        view.task,
+        view.assignee_member_ids,
+        view.external,
+        visible_finished(actor, view.task, finished),
+    )
+
+
+async def _reviewers(db: AsyncSession, task: Task, exclude: uuid.UUID) -> dict[uuid.UUID, bool]:
+    """Who reviews a finished part: the task's creator and the Team Leader(s) or Administration
+    Manager(s) over its scope. Maps Member id -> whether they are inside the scope."""
+    units = await org.current_units(db)
+    positions = await org.active_positions(db)
+    found: dict[uuid.UUID, bool] = {}
+    for position in positions:
+        if position.member_id == exclude:
+            continue
+        if org.owns_scope(position, task.scope_unit_id, units):
+            found[position.member_id] = True
+        elif position.member_id == task.created_by_member_id:
+            found[position.member_id] = org.member_within_task_scope(
+                position, task.scope_unit_id, units
+            )
+    return found
+
+
+async def _review_of(db: AsyncSession, task_id: uuid.UUID, member_id: uuid.UUID) -> Task | None:
+    return await db.scalar(
+        select(Task)
+        .where(Task.review_of_task_id == task_id, Task.review_member_id == member_id)
+        .with_for_update()
+    )
+
+
+async def _ensure_review(
+    db: AsyncSession, task: Task, member_id: uuid.UUID, actor_account_id: uuid.UUID
+) -> Task | None:
+    """Create (or reopen) the leaders' review task for one assignee's finished part."""
+    existing = await _review_of(db, task.id, member_id)
+    if existing is not None:
+        if existing.status not in OPEN_STATUSES:
+            await set_status(db, existing, TaskStatus.NEW, actor_account_id, notify=False)
+        return existing
+    reviewers = await _reviewers(db, task, member_id)
+    if not reviewers:
+        return None
+    now = clock.utcnow()
+    review = Task(
+        title=task.title,
+        description=None,
+        priority=task.priority,
+        due_at=None,
+        status=TaskStatus.NEW,
+        scope_unit_id=task.scope_unit_id,
+        created_by_account_id=task.created_by_account_id,
+        created_by_member_id=task.created_by_member_id,
+        from_outside=False,
+        kind=TaskKind.REVIEW,
+        review_of_task_id=task.id,
+        review_member_id=member_id,
+        created_at=now,
+        updated_at=now,
+    )
+    db.add(review)
+    await db.flush()
+    db.add(
+        TaskScopeChange(
+            task_id=review.id,
+            unit_id=task.scope_unit_id,
+            valid_from=now,
+            created_by_account_id=actor_account_id,
+        )
+    )
+    for reviewer_id, within in reviewers.items():
+        await open_assignment(
+            db, review.id, reviewer_id, actor_account_id, notify=False, external=not within
+        )
+    record(
+        db,
+        review.id,
+        EventKind.REVIEW_CREATED,
+        actor_account_id,
+        review_of_task_id=task.id,
+        member_id=member_id,
+        assignee_member_ids=sorted(reviewers, key=str),
+    )
+    audit.record(
+        db,
+        audit_actions.TASK_REVIEW_CREATED,
+        actor_account_id=actor_account_id,
+        resource_id=review.id,
+        scope_unit_id=review.scope_unit_id,
+        after={"review_of_task_id": task.id, "member_id": member_id},
+    )
+    return review
+
+
+async def _notify_review(
+    db: AsyncSession, review: Task, kind: str, actor_account_id: uuid.UUID
+) -> None:
+    assignees = (await assignees_of(db, [review.id]))[review.id]
+    positions = await org.member_positions(db, assignees)
+    await notifications.notify(
+        db,
+        recipient_account_ids={p.account_id for p in positions.values()},
+        actor_account_id=actor_account_id,
+        category=Category.TASK_REVIEW,
+        source_type=NOTIFICATION_SOURCE,
+        source_id=review.id,
+        kind=kind,
+        summary=review.title,
+    )
+
+
+async def set_part(
+    db: AsyncSession, actor: TaskActor, task_id: uuid.UUID, finished: bool
+) -> TaskView:
+    """An assignee flags (or takes back) "I finished my part". Flagging opens a review task for
+    the leaders; taking it back cancels that review while it is still open."""
+    view = await load_visible(db, actor, task_id, lock=True)
+    task = view.task
+    _require_regular(task)
+    member_id = actor.member_id
+    if member_id is None or not is_assignee(actor, view.assignee_member_ids):
+        raise _deny(MANAGE, task)
+    if task.status not in OPEN_STATUSES:
+        raise TaskConflictError("The task is not open.")
+    row = await db.get(TaskPartProgress, (task.id, member_id), with_for_update=True)
+    if finished and row is None:
+        now = clock.utcnow()
+        db.add(TaskPartProgress(task_id=task.id, member_id=member_id, finished_at=now))
+        record(db, task.id, EventKind.PART_FINISHED, actor.account_id, member_id=member_id)
+        _audit_part(db, audit_actions.TASK_PART_FINISHED, task, member_id, actor.account_id)
+        if task.status == TaskStatus.NEW:
+            await set_status(db, task, TaskStatus.IN_PROGRESS, actor.account_id, notify=False)
+        review = await _ensure_review(db, task, member_id, actor.account_id)
+        if review is not None:
+            await _notify_review(db, review, "review_requested", actor.account_id)
+        await db.flush()
+        done = {m.member_id for m in (await _parts(db, task.id))}
+        if view.assignee_member_ids <= done:
+            await _notify_creator(db, task, "all_parts_finished", actor.account_id)
+    elif not finished and row is not None:
+        await db.delete(row)
+        record(db, task.id, EventKind.PART_REOPENED, actor.account_id, member_id=member_id)
+        _audit_part(db, audit_actions.TASK_PART_REOPENED, task, member_id, actor.account_id)
+        await _cancel_review(db, task, member_id, actor.account_id)
+    await db.commit()
+    return await with_finished(db, actor, view)
+
+
+async def return_part(
+    db: AsyncSession, actor: TaskActor, task_id: uuid.UUID, member_id: uuid.UUID, note: str | None
+) -> TaskView:
+    """A leader sends an assignee's work back: their flag is cleared and they are told."""
+    view = await load_visible(db, actor, task_id, lock=True)
+    task = view.task
+    _require_regular(task)
+    if not can_administer(actor, task):
+        raise _deny(MANAGE, task)
+    row = await db.get(TaskPartProgress, (task.id, member_id), with_for_update=True)
+    if row is None:
+        raise TaskNotFoundError
+    await db.delete(row)
+    record(db, task.id, EventKind.PART_RETURNED, actor.account_id, member_id=member_id)
+    _audit_part(db, audit_actions.TASK_PART_RETURNED, task, member_id, actor.account_id)
+    review = await _review_of(db, task.id, member_id)
+    if review is not None and review.status in OPEN_STATUSES:
+        await set_status(db, review, TaskStatus.COMPLETED, actor.account_id, notify=False)
+    if note:
+        db.add(
+            TaskComment(
+                task_id=task.id,
+                author_account_id=actor.account_id,
+                body=note,
+                created_at=clock.utcnow(),
+            )
+        )
+    position = (await org.member_positions(db, [member_id])).get(member_id)
+    if position is not None:
+        await notifications.notify(
+            db,
+            recipient_account_ids=[position.account_id],
+            actor_account_id=actor.account_id,
+            category=Category.TASK_REVIEW,
+            source_type=NOTIFICATION_SOURCE,
+            source_id=task.id,
+            kind="returned",
+            summary=task.title,
+        )
+    await db.commit()
+    return await with_finished(db, actor, view)
+
+
+async def _parts(db: AsyncSession, task_id: uuid.UUID) -> list[TaskPartProgress]:
+    return list(
+        await db.scalars(select(TaskPartProgress).where(TaskPartProgress.task_id == task_id))
+    )
+
+
+async def _cancel_review(
+    db: AsyncSession, task: Task, member_id: uuid.UUID, actor_account_id: uuid.UUID
+) -> None:
+    review = await _review_of(db, task.id, member_id)
+    if review is not None and review.status in OPEN_STATUSES:
+        await set_status(db, review, TaskStatus.CANCELLED, actor_account_id, notify=False)
+
+
+async def _drop_part(
+    db: AsyncSession, task_id: uuid.UUID, member_id: uuid.UUID, actor_account_id: uuid.UUID
+) -> None:
+    """The assignee left the task: their finished flag and open review go with them."""
+    task = await db.get(Task, task_id)
+    if task is None or task.kind != TaskKind.REGULAR:
+        return
+    await db.execute(
+        delete(TaskPartProgress).where(
+            TaskPartProgress.task_id == task_id, TaskPartProgress.member_id == member_id
+        )
+    )
+    await _cancel_review(db, task, member_id, actor_account_id)
+
+
+async def _after_status(
+    db: AsyncSession,
+    task: Task,
+    previous: TaskStatus,
+    target: TaskStatus,
+    actor_account_id: uuid.UUID,
+) -> None:
+    """Closing or cancelling a task closes its open reviews; reopening it clears finished flags."""
+    if task.kind != TaskKind.REGULAR:
+        return
+    if target in (TaskStatus.COMPLETED, TaskStatus.CANCELLED):
+        reviews = await db.scalars(
+            select(Task).where(Task.review_of_task_id == task.id).with_for_update()
+        )
+        for review in reviews:
+            if review.status in OPEN_STATUSES:
+                await set_status(db, review, target, actor_account_id, notify=False)
+    elif target == TaskStatus.NEW and previous in (TaskStatus.COMPLETED, TaskStatus.CANCELLED):
+        await db.execute(delete(TaskPartProgress).where(TaskPartProgress.task_id == task.id))
+
+
+async def _notify_creator(
+    db: AsyncSession, task: Task, kind: str, actor_account_id: uuid.UUID
+) -> None:
+    await notifications.notify(
+        db,
+        recipient_account_ids=[task.created_by_account_id],
+        actor_account_id=actor_account_id,
+        category=Category.TASK_UPDATE,
+        source_type=NOTIFICATION_SOURCE,
+        source_id=task.id,
+        kind=kind,
+        summary=task.title,
+    )
+
+
+def _audit_part(
+    db: AsyncSession,
+    audit_action: Any,
+    task: Task,
+    member_id: uuid.UUID,
+    actor_account_id: uuid.UUID,
+) -> None:
+    audit.record(
+        db,
+        audit_action,
+        actor_account_id=actor_account_id,
+        resource_id=task.id,
+        scope_unit_id=task.scope_unit_id,
+        after={"member_id": member_id},
+    )
 
 
 # --- Comments -----------------------------------------------------------------------------------

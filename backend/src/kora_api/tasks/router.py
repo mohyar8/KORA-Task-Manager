@@ -21,6 +21,8 @@ from kora_api.tasks.schemas import (
     ExternalAssigneeResponse,
     FollowTaskResponse,
     MoveTaskRequest,
+    ProgressRequest,
+    ReturnPartRequest,
     SeriesResponse,
     StatusRequest,
     SubtaskTemplateResponse,
@@ -111,7 +113,7 @@ async def get_task(task_id: uuid.UUID, access: CurrentAccess, db: DbSession) -> 
     return _task(await _call(service.get_task(db, actor, task_id)))
 
 
-@tasks_router.patch("/{task_id}", responses=errors(404, 422))
+@tasks_router.patch("/{task_id}", responses=errors(404, 409, 422))
 async def update_task(
     task_id: uuid.UUID, body: UpdateTaskRequest, access: CurrentAccess, db: DbSession
 ) -> TaskResponse:
@@ -127,6 +129,28 @@ async def change_status(
     return _task(await _call(service.change_status(db, actor, task_id, body.status)))
 
 
+@tasks_router.put("/{task_id}/progress", responses=errors(404, 409))
+async def set_progress(
+    task_id: uuid.UUID, body: ProgressRequest, access: CurrentAccess, db: DbSession
+) -> TaskResponse:
+    """An assignee flags (or takes back) "I finished my part". Opens a review for the leaders."""
+    actor = await service.actor_for(db, access)
+    return _task(await _call(service.set_part(db, actor, task_id, body.finished)))
+
+
+@tasks_router.post("/{task_id}/progress/{member_id}/return", responses=errors(404, 409))
+async def return_progress(
+    task_id: uuid.UUID,
+    member_id: uuid.UUID,
+    body: ReturnPartRequest,
+    access: CurrentAccess,
+    db: DbSession,
+) -> TaskResponse:
+    """The creator or a manager sends an assignee's work back (optionally with a comment)."""
+    actor = await service.actor_for(db, access)
+    return _task(await _call(service.return_part(db, actor, task_id, member_id, body.note)))
+
+
 @tasks_router.post("/{task_id}/assignees", responses=errors(404, 409, 422))
 async def add_assignee(
     task_id: uuid.UUID, body: AssigneeRequest, access: CurrentAccess, db: DbSession
@@ -137,7 +161,7 @@ async def add_assignee(
     )
 
 
-@tasks_router.post("/{task_id}/assignees/{member_id}/remove", responses=errors(404, 422))
+@tasks_router.post("/{task_id}/assignees/{member_id}/remove", responses=errors(404, 409, 422))
 async def remove_assignee(
     task_id: uuid.UUID, member_id: uuid.UUID, access: CurrentAccess, db: DbSession
 ) -> TaskResponse:
@@ -145,7 +169,7 @@ async def remove_assignee(
     return _task(await _call(service.remove_assignee(db, actor, task_id, member_id)))
 
 
-@tasks_router.post("/{task_id}/move", responses=errors(404, 422))
+@tasks_router.post("/{task_id}/move", responses=errors(404, 409, 422))
 async def move_task(
     task_id: uuid.UUID, body: MoveTaskRequest, access: CurrentAccess, db: DbSession
 ) -> TaskResponse:
@@ -163,7 +187,7 @@ async def list_subtasks(
 
 
 @tasks_router.post(
-    "/{task_id}/subtasks", status_code=status.HTTP_201_CREATED, responses=errors(404, 422)
+    "/{task_id}/subtasks", status_code=status.HTTP_201_CREATED, responses=errors(404, 409, 422)
 )
 async def create_subtask(
     task_id: uuid.UUID, body: CreateSubtaskRequest, access: CurrentAccess, db: DbSession
@@ -336,6 +360,12 @@ def _task(view: service.TaskView) -> TaskResponse:
         created_by_account_id=t.created_by_account_id,
         created_by_member_id=t.created_by_member_id,
         from_outside=t.from_outside,
+        kind=t.kind,
+        review_of_task_id=t.review_of_task_id,
+        review_member_id=t.review_member_id,
+        requested_by_member_id=t.requested_by_member_id,
+        requested_from_unit_id=t.requested_from_unit_id,
+        finished_member_ids=sorted(view.finished, key=str),
         created_at=t.created_at,
         updated_at=t.updated_at,
         started_at=t.started_at,

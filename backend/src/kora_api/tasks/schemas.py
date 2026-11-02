@@ -11,7 +11,7 @@ from pydantic import (
     model_validator,
 )
 
-from kora_api.tasks.constants import EventKind, SeriesStatus, TaskPriority, TaskStatus
+from kora_api.tasks.constants import EventKind, SeriesStatus, TaskKind, TaskPriority, TaskStatus
 
 
 def _to_utc(value: datetime) -> datetime:
@@ -79,6 +79,17 @@ class AssigneeRequest(BaseModel):
     external: bool = False
 
 
+class ProgressRequest(BaseModel):
+    finished: bool
+
+
+class ReturnPartRequest(BaseModel):
+    note: (
+        Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=5_000)]
+        | None
+    ) = None
+
+
 class MoveTaskRequest(BaseModel):
     scope_unit_id: uuid.UUID
 
@@ -106,10 +117,20 @@ class TaskResponse(BaseModel):
     created_by_member_id: uuid.UUID
     # Created by someone other than the scope's Team Leader or Administration Manager.
     from_outside: bool
+    # `review`: made automatically for the leaders when an assignee finishes their part.
+    kind: TaskKind
+    review_of_task_id: uuid.UUID | None
+    review_member_id: uuid.UUID | None
+    # Set when the task came from another Administration's request.
+    requested_by_member_id: uuid.UUID | None
+    requested_from_unit_id: uuid.UUID | None
     created_at: datetime
     updated_at: datetime
     started_at: datetime | None
     assignee_member_ids: list[uuid.UUID]
+    # Assignees who finished their part: all of them for the creator and managers, otherwise
+    # only the caller's own.
+    finished_member_ids: list[uuid.UUID]
     # The assignees given through 'Other' (outside the scope), with their names.
     external_assignees: list[ExternalAssigneeResponse]
 

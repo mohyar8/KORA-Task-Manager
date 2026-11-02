@@ -92,7 +92,7 @@ async def test_series_edit_affects_only_future_unstarted_occurrences(
     series = (await owner.post(SERIES, _series_body(world, frozen_clock, weeks=5))).json()
     first, second, third, fourth, _ = series["occurrence_ids"]
     assignee = await login("m_a1")
-    await assignee.post(f"{TASKS}/{first}/status", {"status": "completed"})
+    await owner.post(f"{TASKS}/{first}/status", {"status": "completed"})
     await assignee.post(f"{TASKS}/{second}/status", {"status": "in_progress"})
     await owner.post(f"{TASKS}/{third}/status", {"status": "cancelled"})
     frozen_clock.advance(timedelta(minutes=5))
@@ -162,7 +162,7 @@ async def test_invalid_future_assignee_is_removed_with_reason(
     owner = await login("tl_a1")
     series = (await owner.post(SERIES, _series_body(world, frozen_clock, weeks=3))).json()
     first = series["occurrence_ids"][0]
-    await (await login("m_a1")).post(f"{TASKS}/{first}/status", {"status": "completed"})
+    await owner.post(f"{TASKS}/{first}/status", {"status": "completed"})
     frozen_clock.advance(timedelta(minutes=1))
 
     admin = await login("sysadmin")
