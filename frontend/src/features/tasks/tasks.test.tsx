@@ -23,7 +23,7 @@ const task = (over: Partial<Task> = {}): Task => ({
   id: 't1', title: 'Prepare match report', description: 'Details here', priority: 'high', due_at: '2099-01-01T10:00:00Z',
   status: 'new', scope_unit_id: 'u-team', parent_id: null, series_id: null, created_by_account_id: 'a-sara',
   created_by_member_id: ME, created_at: '2026-10-10T08:00:00Z', updated_at: '2026-10-10T08:00:00Z', started_at: null,
-  assignee_member_ids: ['m-omar'], external_assignees: [], from_outside: false, ...over,
+  assignee_member_ids: ['m-omar'], external_assignees: [], from_outside: false, kind: 'regular', review_of_task_id: null, review_member_id: null, finished_member_ids: [], ...over,
 })
 
 const viewer = (over: Partial<Viewer> = {}): Viewer => ({ memberId: ME, accountId: 'a-sara', access: access as unknown as EffectiveAccess, ...over })

@@ -69,6 +69,21 @@ export function useSetStatus(id: string) {
   return useMutation({ mutationFn: (status: TaskStatus) => http.post<Task>(`/tasks/${id}/status`, { status }), onSuccess: refresh })
 }
 
+/** An assignee flags (or takes back) "I finished my part"; flagging opens a review for the leaders. */
+export function useSetProgress(id: string) {
+  const refresh = useRefresh()
+  return useMutation({ mutationFn: (finished: boolean) => http.put<Task>(`/tasks/${id}/progress`, { finished }), onSuccess: refresh })
+}
+
+/** The creator or a manager sends an assignee's work back, optionally with a comment. */
+export function useReturnPart(id: string) {
+  const refresh = useRefresh()
+  return useMutation({
+    mutationFn: (body: { member_id: string; note: string | null }) => http.post<Task>(`/tasks/${id}/progress/${body.member_id}/return`, { note: body.note }),
+    onSuccess: refresh,
+  })
+}
+
 export function useAddAssignee(id: string) {
   const refresh = useRefresh()
   return useMutation({ mutationFn: (body: { member_id: string; external: boolean }) => http.post<Task>(`/tasks/${id}/assignees`, body), onSuccess: refresh })

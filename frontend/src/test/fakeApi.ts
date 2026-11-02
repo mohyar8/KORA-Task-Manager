@@ -51,6 +51,7 @@ export function accessFor(allowed: string[] = [], withAdministration = false) {
     'organization.manage', 'task.view', 'task.create', 'task.manage',
     'announcement.publish', 'announcement.manage', 'calendar.create', 'calendar.manage',
     'task.follow', 'calendar.view_administration', 'calendar.view_all', 'league.manage',
+    'task_request.create', 'task_request.respond', 'chat.moderate',
   ]
   return {
     account_id: 'a1',

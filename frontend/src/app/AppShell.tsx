@@ -8,9 +8,7 @@ import ballMark from '@/shared/brand/kora-lockup-ball.png'
 import { useDisplayName } from '@/features/members/directory'
 import { NotificationBell } from '@/features/notifications/NotificationBell'
 import { useSession } from '@/features/auth/session'
-import { useChannels } from '@/features/chat/useChannels'
-import { useAnnouncements } from '@/features/announcements/api'
-import { usePendingIncoming } from '@/features/requests/useIncoming'
+import { useBadges } from '@/features/summary/useBadges'
 import { PanelArt } from '@/shared/brand/PanelArt'
 import { teamColor } from '@/features/teams/teamColor'
 import { workUnits } from '@/features/teams/units'
@@ -33,11 +31,9 @@ export function AppShell() {
   const items = visibleNavItems(access, !!account?.is_system_admin)
   const units = workUnits(access)
   const [moreOpen, setMoreOpen] = useState(false)
-  const { totalUnread } = useChannels()
-  const pendingRequests = usePendingIncoming()
-  const unreadAnnouncements = (useAnnouncements('published').data ?? []).filter((a) => !a.content_hidden && a.my_read_current === false).length
+  const badge = useBadges()
   // A number next to a place means something new is waiting there.
-  const badges: Record<string, number> = { '/chat': totalUnread, '/requests': pendingRequests, '/announcements': unreadAnnouncements }
+  const badges: Record<string, number> = { '/chat': badge.chat, '/requests': badge.requests, '/announcements': badge.announcements }
 
   const toLink = (i: NavItem): Link => ({ to: i.to, label: t(i.labelKey), icon: i.icon })
   const home = items.filter((i) => i.section === 'main').map(toLink)

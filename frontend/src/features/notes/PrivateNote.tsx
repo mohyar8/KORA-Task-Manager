@@ -2,9 +2,16 @@ import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { Lock, StickyNote } from 'lucide-react'
 import { useI18n } from '@/shared/i18n/i18n'
 import { useSession } from '@/features/auth/session'
+import { ApiError } from '@/shared/api/http'
+import { isMock } from '@/shared/config'
+import { saveNote, useNoteQuery } from './api'
 import styles from './notes.module.css'
 
-/** MOCK: a private scratch note kept in this browser, per account. The backend will store it as a row only its owner can read. */
+/**
+ * A private scratch note only its owner can read. Real: stored by the server (versioned, so a stale tab cannot
+ * overwrite a newer save). Mock: kept in this browser. A note left in the browser by the mock moves to the server
+ * the first time the account opens the real app.
+ */
 const storageKey = (accountId: string) => `kora.mock.note.${accountId}`
 const BULLET = '• '
 
@@ -20,19 +27,60 @@ export function PrivateNote() {
   const { t } = useI18n()
   const { account } = useSession()
   const id = account?.id ?? ''
-  const [text, setText] = useState(() => read(id))
+  const mock = isMock()
+  const remote = useNoteQuery(!mock && !!id)
+  const [text, setText] = useState(() => (mock ? read(id) : ''))
+  const version = useRef(0)
+  const lastSaved = useRef('')
+  const loaded = useRef(mock)
   const area = useRef<HTMLTextAreaElement>(null)
 
+  // Real: take the server's note once it arrives (or the one the mock left behind, when the server has none).
   useEffect(() => {
+    if (mock || loaded.current || !remote.data) return
+    loaded.current = true
+    version.current = remote.data.version
+    const legacy = remote.data.version === 0 ? read(id) : ''
+    lastSaved.current = remote.data.body
+    setText(legacy || remote.data.body)
+  }, [mock, remote.data, id])
+
+  useEffect(() => {
+    if (!id || (!mock && !loaded.current)) return
     const handle = window.setTimeout(() => {
-      try {
-        localStorage.setItem(storageKey(id), text)
-      } catch {
-        // storage unavailable: the note simply is not kept
+      if (mock) {
+        try {
+          localStorage.setItem(storageKey(id), text)
+        } catch {
+          // storage unavailable: the note simply is not kept
+        }
+        return
       }
-    }, 400)
+      if (text === lastSaved.current) return
+      saveNote(text, version.current)
+        .then((saved) => {
+          version.current = saved.version
+          lastSaved.current = saved.body
+          try {
+            localStorage.removeItem(storageKey(id)) // the browser copy has moved to the server
+          } catch {
+            // nothing to clean
+          }
+        })
+        .catch((error: unknown) => {
+          // Saved elsewhere meanwhile: show that newer note instead of overwriting it silently.
+          if (error instanceof ApiError && error.status === 409) {
+            void remote.refetch().then((r) => {
+              if (!r.data) return
+              version.current = r.data.version
+              lastSaved.current = r.data.body
+              setText(r.data.body)
+            })
+          }
+        })
+    }, 600)
     return () => window.clearTimeout(handle)
-  }, [id, text])
+  }, [id, text, mock, remote])
 
   const edit = (next: string, caret: number) => {
     setText(next)

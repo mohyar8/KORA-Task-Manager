@@ -33,6 +33,9 @@ export const PERMISSIONS: Permission[] = [
   'calendar.view_administration',
   'calendar.view_all',
   'league.manage',
+  'task_request.create',
+  'task_request.respond',
+  'chat.moderate',
 ]
 
 export type OverrideEffect = 'grant' | 'deny'

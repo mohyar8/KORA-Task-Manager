@@ -1,10 +1,8 @@
 import { useRef, useState } from 'react'
 import { Paperclip, X } from 'lucide-react'
 import { useI18n } from '@/shared/i18n/i18n'
-import { useDisplayName } from '@/features/members/directory'
-import { useSession } from '@/features/auth/session'
-import { checkFile, fileActions, type FileKind, type FileProblem } from '@/mock/fileStore'
-import { formatSize } from './AttachmentsCard'
+import { checkFile, type FileProblem } from '@/mock/fileStore'
+import { formatSize } from './attach'
 import styles from './attachments.module.css'
 
 /** Files chosen while writing a task; they are attached once the task exists (see `useAttachAfterCreate`). */
@@ -48,16 +46,3 @@ export function FilePicker({ files, onChange }: { files: File[]; onChange: (file
     </div>
   )
 }
-
-/** Returns a function that attaches the chosen files to a task: the brief of a new task, or a delivery. */
-export function useAttach(kind: FileKind) {
-  const { account } = useSession()
-  const name = useDisplayName()
-  return (taskId: string, files: File[]) => {
-    const id = account?.member_id
-    if (!id) return
-    for (const file of files) void fileActions.add(taskId, kind, file, { id, name })
-  }
-}
-
-export const useAttachAfterCreate = () => useAttach('brief')

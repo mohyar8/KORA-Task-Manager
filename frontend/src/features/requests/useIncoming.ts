@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { isMock } from '@/shared/config'
 import { useI18n } from '@/shared/i18n/i18n'
 import { useSession } from '@/features/auth/session'
 import { workUnits } from '@/features/teams/units'
@@ -18,7 +19,7 @@ export function usePendingIncoming(): number {
   const myUnit = useMyRequestUnit()
   const all = useRequests()
   useEffect(() => {
-    if (!myUnit) return
+    if (!isMock() || !myUnit) return
     requestActions.seed({ title: t('requests.seed.title'), description: t('requests.seed.body'), dueDate: null, priority: 'high', fromUnit: mockOrg.children[1]?.name ?? '', fromName: mockOrg.children[1]?.leader?.name ?? '', toUnit: myUnit })
   }, [myUnit, t])
   return all.filter((r) => r.toUnit === myUnit && r.status === 'pending').length

@@ -11,7 +11,7 @@ import { ConfirmDialog, Modal } from '@/shared/ui/Modal'
 import { allUnits, allowedUnits } from '@/features/auth/permissions'
 import { useSession } from '@/features/auth/session'
 import { useMemberNames } from '@/features/members/directory'
-import { useMoveTask, useSetStatus, useTask, useUpdateTask } from './api'
+import { useMoveTask, useSetProgress, useSetStatus, useTask, useUpdateTask } from './api'
 import { AssigneesCard } from './AssigneesCard'
 import { CommentsCard } from './CommentsCard'
 import { HistoryCard } from './HistoryCard'
@@ -19,7 +19,6 @@ import { SubtasksCard } from './SubtasksCard'
 import { DueText, PriorityText, StatusChip } from './TaskBits'
 import { useViewer } from './useViewer'
 import { TaskFormModal } from './TaskForm'
-import { partKey, taskParts, useTaskParts } from '@/mock/taskParts'
 import { AttachmentsCard } from './AttachmentsCard'
 import { CompleteDialog } from './CompleteDialog'
 import { allowedTransitions, canAdminister, canFinish, changedFields, isAssignee, isOpen } from './rules'
@@ -52,10 +51,13 @@ function TaskView({ task }: { task: Task }) {
 
   const unitName = (id: string) => allUnits(access).find((u) => u.unit_id === id)?.name ?? id
   const admin = canAdminister(task, viewer)
-  const parts = useTaskParts()
-  const flagging = isOpen(task) && isAssignee(task, viewer) && !canFinish(task, viewer)
-  const myPart = !!viewer.memberId && !!parts[partKey(task.id, viewer.memberId)]
-  const transitions = allowedTransitions(task, viewer)
+  const progress = useSetProgress(task.id)
+  const isReview = task.kind === 'review'
+  const flagging = !isReview && isOpen(task) && isAssignee(task, viewer) && !canFinish(task, viewer)
+  const myPart = !!viewer.memberId && task.finished_member_ids.includes(viewer.memberId)
+  const heading = isReview ? t('review.title', { name: names.nameOf(task.review_member_id), task: task.title }) : task.title
+  // A review is closed or reopened like any task, but never edited, moved or cancelled.
+  const transitions = allowedTransitions(task, viewer).filter((s) => !isReview || s === 'completed' || s === 'new')
   const moveOptions = allowedUnits(access, 'task.create').filter((u) => u.unit_id !== task.scope_unit_id)
 
   const run = (status: TaskStatus) => {
@@ -69,7 +71,7 @@ function TaskView({ task }: { task: Task }) {
         <ArrowRight size={16} aria-hidden="true" className={styles.backIcon} /> {task.parent_id ? t('tasks.detail.parentLink') : t('tasks.back')}
       </Link>
       <PageHeader
-        title={task.title}
+        title={heading}
         description={task.parent_id ? t('tasks.detail.parent') : undefined}
         actions={
           <div className={styles.actions}>
@@ -84,16 +86,20 @@ function TaskView({ task }: { task: Task }) {
               </Button>
             ))}
             {flagging && viewer.memberId && (
-              <Button variant={myPart ? 'secondary' : 'primary'} onClick={() => (myPart ? taskParts.toggle(task.id, viewer.memberId!) : setFinishing('flag'))}>{t(myPart ? 'taskPart.undo' : 'taskPart.done')}</Button>
+              <Button variant={myPart ? 'secondary' : 'primary'} loading={progress.isPending} onClick={() => (myPart ? progress.mutate(false) : setFinishing('flag'))}>{t(myPart ? 'taskPart.undo' : 'taskPart.done')}</Button>
             )}
-            {admin && <Button variant="secondary" onClick={() => { update.reset(); setEditing(true) }}>{t('tasks.edit')}</Button>}
-            {admin && !task.parent_id && moveOptions.length > 0 && (
+            {admin && !isReview && <Button variant="secondary" onClick={() => { update.reset(); setEditing(true) }}>{t('tasks.edit')}</Button>}
+            {admin && !isReview && !task.parent_id && moveOptions.length > 0 && (
               <Button variant="secondary" onClick={() => { move.reset(); setDestination(''); setMoving(true) }}>{t('tasks.move')}</Button>
             )}
           </div>
         }
       />
       {setStatus.error && confirm === null && <InlineError error={setStatus.error} />}
+
+      {isReview && task.review_of_task_id && (
+        <p className={styles.hint}><Link to={`/tasks/${task.review_of_task_id}`}>{t('review.open')}</Link></p>
+      )}
 
       <div className={styles.sections}>
         <Card>
@@ -124,7 +130,7 @@ function TaskView({ task }: { task: Task }) {
 
         <AssigneesCard task={task} viewer={viewer} />
         <AttachmentsCard task={task} viewer={viewer} />
-        {!task.parent_id && <SubtasksCard task={task} viewer={viewer} />}
+        {!task.parent_id && !isReview && <SubtasksCard task={task} viewer={viewer} />}
         <CommentsCard task={task} viewer={viewer} />
         <HistoryCard task={task} />
       </div>
@@ -132,12 +138,12 @@ function TaskView({ task }: { task: Task }) {
       {finishing && (
         <CompleteDialog
           taskId={task.id}
-          title={task.title}
+          title={heading}
           mode={finishing}
           loading={setStatus.isPending}
           onClose={() => setFinishing(null)}
           onConfirm={() => {
-            if (finishing === 'flag' && viewer.memberId) taskParts.toggle(task.id, viewer.memberId)
+            if (finishing === 'flag') progress.mutate(true)
             else run('completed')
             setFinishing(null)
           }}

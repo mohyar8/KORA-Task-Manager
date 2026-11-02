@@ -12,7 +12,6 @@ import { MiniCalendar } from '@/features/tasks/MiniCalendar'
 import { MyTasksCard } from '@/features/tasks/MyTasksCard'
 import { QuickAdd } from '@/features/tasks/QuickAdd'
 import { isAssignee } from '@/features/tasks/rules'
-import { useReviewTasks } from '@/features/tasks/reviewTasks'
 import { useViewer } from '@/features/tasks/useViewer'
 import { workUnits } from '@/features/teams/units'
 import { PanelArt } from '@/shared/brand/PanelArt'
@@ -34,8 +33,7 @@ export function HomePage() {
   const greeting = hour < 12 ? t('home.greeting.morning') : hour < 18 ? t('home.greeting.afternoon') : t('home.greeting.evening')
   const today = new Intl.DateTimeFormat(locale === 'ar' ? 'ar-u-nu-latn' : 'en-GB', { dateStyle: 'full', calendar: 'gregory' }).format(new Date())
   const all = query.data ?? []
-  const reviews = useReviewTasks(all, viewer)
-  const mine = [...all.filter((task) => isAssignee(task, viewer)), ...reviews]
+  const mine = all.filter((task) => isAssignee(task, viewer))
   const me = names.members.find((m) => m.id === account?.member_id)
   const myTeam = units.find((u) => u.unit_id === me?.team_id)?.name
   const roleLine = me?.role_key ? [roleLabel(t, me.role_key), myTeam].filter(Boolean).join(' · ') : ''

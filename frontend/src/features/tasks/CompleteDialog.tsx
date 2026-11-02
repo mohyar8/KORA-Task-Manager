@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { useI18n } from '@/shared/i18n/i18n'
 import { Button } from '@/shared/ui/Button'
 import { Modal } from '@/shared/ui/Modal'
-import { FilePicker, useAttach } from './FilePicker'
+import { FilePicker } from './FilePicker'
+import { useAttach } from './attach'
 import styles from './attachments.module.css'
 
 interface Props {

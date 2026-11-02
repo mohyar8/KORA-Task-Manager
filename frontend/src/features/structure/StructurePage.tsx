@@ -1,13 +1,12 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router'
 import { Building2, Crown, MessageSquare, Users } from 'lucide-react'
 import { useI18n } from '@/shared/i18n/i18n'
 import { Modal } from '@/shared/ui/Modal'
 import { useSession } from '@/features/auth/session'
-import { useDisplayName } from '@/features/members/directory'
 import { dmChannelId } from '@/mock/chatStore'
-import { mockOrg, type OrgNode, type OrgPerson } from '@/mock/orgChart'
-import { workUnits } from '@/features/teams/units'
+import { ErrorState, Skeleton } from '@/shared/ui/Feedback'
+import { useOrgTree, type OrgNode, type OrgPerson } from './useOrgTree'
 import { teamColor } from '@/features/teams/teamColor'
 import styles from './structure.module.css'
 
@@ -20,37 +19,26 @@ interface Picked {
 /** The whole organization as a top-down chart. Everyone sees all of it; your own unit is highlighted. Click anyone to message them. */
 export function StructurePage() {
   const { t } = useI18n()
-  const { access, account } = useSession()
-  const displayName = useDisplayName()
-  const myNames = useMemo(() => new Set(workUnits(access).map((u) => u.name)), [access])
+  const { account } = useSession()
+  const { tree, isLoading, isMine, error } = useOrgTree()
   const me = account?.member_id ?? ''
   const [picked, setPicked] = useState<Picked | null>(null)
   const mine = useRef<HTMLDivElement | null>(null)
-
-  // The signed-in person appears as a member of their own team in the mock tree.
-  const tree = useMemo(() => {
-    const addMe = (n: OrgNode): OrgNode => ({
-      ...n,
-      members: me && n.kind === 'team' && myNames.has(n.name) && displayName ? [...n.members, { id: me, name: displayName }] : n.members,
-      children: n.children.map(addMe),
-    })
-    return addMe(mockOrg)
-  }, [me, myNames, displayName])
 
   useEffect(() => { mine.current?.scrollIntoView?.({ block: 'center', inline: 'center' }) }, [tree])
 
   const role = (n: OrgNode, leader: boolean) => (leader ? t(`structure.leaderOf.${n.kind}` as 'structure.leaderOf.team', { unit: n.name }) : t('structure.memberOf', { unit: n.name }))
 
   const render = (n: OrgNode, depth: number) => {
-    const isMine = myNames.has(n.name)
+    const mineUnit = isMine(n)
     const Icon = n.kind === 'organization' ? Crown : n.kind === 'administration' ? Building2 : Users
     return (
       <li key={n.id}>
-        <div ref={isMine ? mine : undefined} className={`${styles.unit} ${isMine ? styles.mineUnit : ''} ${depth === 0 ? styles.root : ''}`} style={{ ['--unit' as string]: teamColor(n.id) }} role="group" aria-label={n.name}>
+        <div ref={mineUnit ? mine : undefined} className={`${styles.unit} ${mineUnit ? styles.mineUnit : ''} ${depth === 0 ? styles.root : ''}`} style={{ ['--unit' as string]: teamColor(n.id) }} role="group" aria-label={n.name}>
           <header>
             <Icon size={16} aria-hidden="true" />
             <h2>{n.name}</h2>
-            {isMine && <span className={styles.badge}>{t('structure.mine')}</span>}
+            {mineUnit && <span className={styles.badge}>{t('structure.mine')}</span>}
           </header>
           <span className={styles.kind}>{t(`structure.kind.${n.kind}` as 'structure.kind.team')}</span>
           {n.leader && (
@@ -79,6 +67,8 @@ export function StructurePage() {
       </li>
     )
   }
+
+  if (isLoading || !tree) return <div className={styles.page}>{error ? <ErrorState error={error} /> : <Skeleton lines={6} />}</div>
 
   return (
     <div className={styles.page}>

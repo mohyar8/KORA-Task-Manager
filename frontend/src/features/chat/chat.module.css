@@ -41,3 +41,7 @@
 @media (min-width: 900px) {
   .chat { grid-template-columns: 300px minmax(0, 1fr); block-size: 100%; grid-template-rows: minmax(0, 1fr); }
 }
+
+.del { position: absolute; inset-block-start: 4px; inset-inline-end: 4px; display: none; border: 0; background: transparent; color: var(--ui-muted); cursor: pointer; }
+.msg { position: relative; }
+.msg:hover .del, .msg:focus-within .del { display: inline-flex; }

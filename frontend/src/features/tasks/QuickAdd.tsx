@@ -8,7 +8,7 @@ import { isTopRole, useMemberNames } from '@/features/members/directory'
 import { useSession } from '@/features/auth/session'
 import { useCreateTask } from './api'
 import { TaskFormModal } from './TaskForm'
-import { useAttachAfterCreate } from './FilePicker'
+import { useAttachAfterCreate } from './attach'
 import styles from './taskLists.module.css'
 
 export interface QuickUnit {

@@ -22,6 +22,9 @@ const categoryIcon: Record<NotificationCategory, ReactNode> = {
   announcement_new: <Megaphone size={22} aria-hidden="true" />,
   announcement_change: <Bell size={22} aria-hidden="true" />,
   calendar_event: <CalendarDays size={22} aria-hidden="true" />,
+  task_review: <ClipboardCheck size={22} aria-hidden="true" />,
+  task_request: <ClipboardCheck size={22} aria-hidden="true" />,
+  chat_message: <MessageSquare size={22} aria-hidden="true" />,
 }
 
 export function NotificationsPage() {
@@ -91,7 +94,7 @@ function NotificationList() {
               accent={n.read_at ? undefined : 'coral'}
               muted={!!n.read_at}
               leading={<Avatar tone={n.read_at ? 'gray' : 'fuchsia'}>{categoryIcon[n.category]}</Avatar>}
-              title={<span className={n.redacted ? styles.redacted : undefined}>{n.redacted ? t('notif.redacted') : (n.summary ?? t('notif.noSummary'))}</span>}
+              title={<span className={n.redacted ? styles.redacted : undefined}>{n.redacted ? t('notif.redacted') : (n.summary ?? t(n.category === 'chat_message' ? 'notif.chat.new' : 'notif.noSummary'))}</span>}
               meta={
                 <>
                   <Chip>{t(`notif.category.${n.category}`)}</Chip>

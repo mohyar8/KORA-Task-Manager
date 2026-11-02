@@ -2,6 +2,7 @@ import { CalendarDays, ClipboardCheck, Trophy, ScrollText, Home, ListTodo, Messa
 import type { MessageKey } from '@/shared/i18n/messages.en'
 import { canAnywhere, isAdministrationManager } from '@/features/auth/permissions'
 import type { EffectiveAccess, Permission } from '@/features/auth/types'
+import { isMock } from '@/shared/config'
 
 export type NavSection = 'main' | 'tools' | 'admin'
 
@@ -29,7 +30,7 @@ export const navItems: NavItem[] = [
   { to: '/tasks', labelKey: 'nav.tasks', icon: ListTodo, section: 'tools', permission: 'task.view', administrationManagerOnly: true },
   { to: '/follow', labelKey: 'nav.follow', icon: ClipboardCheck, section: 'tools', permission: 'task.follow' },
   { to: '/structure', labelKey: 'nav.structure', icon: Workflow, section: 'tools' },
-  { to: '/requests', labelKey: 'nav.requests', icon: Handshake, section: 'tools', permission: 'task.manage' },
+  { to: '/requests', labelKey: 'nav.requests', icon: Handshake, section: 'tools', permission: isMock() ? 'task.manage' : 'task_request.create' },
   { to: '/calendar', labelKey: 'nav.calendar', icon: CalendarDays, section: 'tools' },
   { to: '/announcements', labelKey: 'nav.announcements', icon: Megaphone, section: 'tools' },
   { to: '/league', labelKey: 'nav.league', icon: Trophy, section: 'tools' },
